@@ -184,6 +184,30 @@ mutable struct Capsule{T} <: Shape{T}
 end
 
 """
+    Triad{T} <: Shape{T}
+
+    triad geometry (coordinate frame)
+    
+    position_offset: geometry origin offset from center of mass
+    orientation_offset: orientation offset from body frame
+    scale: scaling
+"""
+mutable struct Triad{T} <: Shape{T}
+    position_offset::SVector{3,T}
+    orientation_offset::Quaternion{T}
+    scale::SVector{3,T}
+
+    # Capsule points in the z direction
+    function Triad(position_offset::AbstractVector=szeros(3), 
+            orientation_offset::Quaternion=one(Quaternion);
+            scale::AbstractVector=sones(3), 
+            color=RGBA(0.75, 0.75, 0.75))
+        T = promote_type(quateltype.((position_offset, orientation_offset))...)
+        new{T}(position_offset, orientation_offset, [r; h], scale, color)
+    end
+end
+
+"""
     Shapes{T} <: Shape{T}
 
     composite geometry

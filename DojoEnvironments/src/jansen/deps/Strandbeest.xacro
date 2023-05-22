@@ -1,0 +1,106 @@
+<?xml version="1.0"?>
+
+<robot xmlns="http://drake.mit.edu"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://drake.mit.edu ../../doc/drakeURDF.xsd"
+ xmlns:xacro="http://ros.org/wiki/xacro" name="Strandbeest">
+ <xacro:include filename="LegPair.xacro" />
+ <xacro:property name="pi" value="3.1415926535897931" />
+
+  <material name="#FF9619"> <color rgba="1.0 0.5882353 0.098039225 1"/> </material>
+  <material name="#FE6860"> <color rgba="0.9960785 0.40784317 0.37647063 1"/> </material>
+  <material name="#D2588C"> <color rgba="0.8235295 0.34509805 0.54901963 1"/> </material>
+  <material name="#8C5C99"> <color rgba="0.54901963 0.36078432 0.6 1"/> </material>
+  <material name="#4A5782"> <color rgba="0.2901961 0.34117648 0.50980395 1"/> </material>
+  <material name="#2F4858"> <color rgba="0.18431373 0.28235295 0.34509805 1"/> </material>
+
+ <link name="crossbar">
+    <inertial>
+      <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+      <mass value="1"/>
+        <inertia ixx="1"  ixy="0"  ixz="0" iyy="1" iyz="0" izz="1" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+      <geometry>
+        <cylinder length="1" radius="0.01"/>
+      </geometry>
+      <material name="orange">
+        <color rgba="1 .6392 .0980 1"/>
+      </material>
+    </visual>
+  </link>
+
+ <link name="crank_axle">
+    <inertial>
+      <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+      <mass value="1"/>
+        <inertia ixx="1"  ixy="0"  ixz="0" iyy="1" iyz="0" izz="1" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+      <geometry>
+        <cylinder length="1" radius="0.02"/>
+      </geometry>
+      <material name="orange"/>
+    </visual>
+  </link>
+
+  <joint name="joint_crossbar_crank" type="continuous">
+    <axis xyz="0 1 0"/>
+    <parent link="crossbar"/>
+    <child link="crank_axle"/>
+    <origin rpy="0 0 0" xyz="0 0 0.078"/>
+  </joint>
+
+  <transmission name="crossbar_crank_transmission" type="pr2_mechanism_model/SimpleTransmission">
+    <joint name="joint_crossbar_crank"/>
+    <actuator name="crossbar_crank_motor"/>
+    <mechanicalReduction>1</mechanicalReduction>
+  </transmission>
+
+  <xacro:macro name="positioned_leg_pair" params="name offset angle material">
+	  <xacro:strandbeest_leg_pair prefix="${name}" material="${material}">
+	  </xacro:strandbeest_leg_pair>
+
+	  <joint name="${name}_joint_crossbar_l" type="fixed">
+	    <axis xyz="0 1 0"/>
+	    <parent link="crossbar"/>
+	    <child link="${name}_bar_l"/>
+	    <origin rpy="0 0 0" xyz="0 ${offset} 0"/>
+	  </joint>
+
+	  <joint name="${name}_joint_crank_axle_m" type="fixed">
+	    <axis xyz="0 1 0"/>
+	    <parent link="crank_axle"/>
+	    <child link="${name}_bar_m"/>
+	    <origin rpy="0 ${angle} 0" xyz="0 ${offset} 0"/>
+	  </joint>
+
+  <loop_joint name="${name}_loop_crank_l" type="continuous">
+    <axis xyz="0 1 0"/>
+    <link1 link="crank_axle" rpy="0 0 0" xyz="0 ${offset} 0"/>
+    <link2 link="${name}_bar_l" rpy="0 0 0" xyz="0 0 0.078"/>
+  </loop_joint>
+
+	</xacro:macro>
+
+	<xacro:positioned_leg_pair name="pair01" offset="-0.5" angle="0" material="#2F4858">
+	</xacro:positioned_leg_pair>
+
+	<xacro:positioned_leg_pair name="pair02" offset="-0.3" angle="${2*pi/3}" material="#4A5782">
+	</xacro:positioned_leg_pair>
+
+	<xacro:positioned_leg_pair name="pair03" offset="-0.1" angle="${4*pi/3}" material="#8C5C99">
+	</xacro:positioned_leg_pair>
+
+	<xacro:positioned_leg_pair name="pair04" offset="0.1" angle="${pi/3}" material="#D2588C">
+	</xacro:positioned_leg_pair>
+
+	<xacro:positioned_leg_pair name="pair05" offset="0.3" angle="${3*pi/3}" material="#FE6860">
+	</xacro:positioned_leg_pair>
+
+	<xacro:positioned_leg_pair name="pair06" offset="0.5" angle="${5*pi/3}" material="#FF9619">
+	</xacro:positioned_leg_pair>
+
+</robot>

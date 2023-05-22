@@ -14,6 +14,7 @@ using StaticArrays: SUnitRange
 using Quaternions
 using Parameters
 using Statistics
+using Rotations
 
 using Colors
 using Colors: RGBA, RGB
@@ -173,7 +174,8 @@ export
     Mesh,
     Shapes,
     get_body,
-    get_node
+    get_node, 
+    Triad
 
 # Joints
 export
@@ -318,7 +320,9 @@ export
 export
     szeros,
     sones,
-    srand
+    srand, 
+    SVector, 
+    Scalar
 
 # Utilities
 export
