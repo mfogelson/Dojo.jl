@@ -56,8 +56,7 @@ function visualize(mechanism::Mechanism, storage::Storage{T,N};
         if show_joint
             for (jd, joint) in enumerate(mechanism.joints)
                 if joint.child_id == body.id
-                    radius = 0.1
-                    joint_shape = Sphere(radius, 
+                    joint_shape = Sphere(joint_radius, 
                         position_offset=joint.translational.vertices[2],
                         color=RGBA(0.0, 0.0, 1.0, 0.5))
                     visshape = convert_shape(joint_shape)
@@ -114,6 +113,44 @@ function visualize(mechanism::Mechanism, storage::Storage{T,N};
 
     setanimation!(vis, animation)
     return_animation ? (return vis, animation) : (return vis) 
+end
+
+"""
+    visualize(mechanism; vis, build, show_contact, animation, color, name)
+
+    visualize mechanism pose from current state 
+
+    mechanism: Mechanism 
+    vis: Visualizer 
+    build: flag to construct mechanism visuals (only needs to be built once)
+    show_contact: flag to show contact locations on system 
+    color: RGBA 
+    name: unique identifier for mechanism
+"""
+function visualize(mechanism::Mechanism; 
+    vis::Visualizer=Visualizer(),
+    framerate=60, # Inf for 1/timestep
+    build::Bool=true, 
+    show_joint=false,
+    joint_radius=0.1,
+    show_contact=false,
+    show_frame=false, 
+    animation=nothing, 
+    color=nothing, 
+    name::Symbol=:robot,
+    return_animation=false,
+    visualize_floor=true) where {T,N}
+
+    # Create 1 step storage from current body state
+    storage = Storage(1, length(mechanism.bodies))
+    for (i, body) in enumerate(mechanism.bodies)
+        storage.x[i][1] = body.state.x2
+        storage.q[i][1] = body.state.q2
+    end
+
+    visualize(mechanism, storage; 
+        vis, framerate, build, show_joint, joint_radius, show_contact, show_frame, 
+        animation, color, name, return_animation, visualize_floor)
 end
 
 """
@@ -226,12 +263,16 @@ MeshCat.js_scaling(s::AbstractVector) = s
 MeshCat.js_position(p::AbstractVector) = p
 
 function set_node!(x, q, shape, shapevisualizer, showshape)
+    # println(showshape)
+
     if showshape
         # TODO currently setting props directly because MeshCat/Rotations doesn't convert scaled rotation properly.
         # If this changes, do similarily to origin
+        #! Mitch Comment: I think that this is morphing the geometries in Dojo
         setprop!(shapevisualizer, "scale", MeshCat.js_scaling(shape.scale))
         setprop!(shapevisualizer, "position", MeshCat.js_position(x + vector_rotate(shape.position_offset, q)))
         setprop!(shapevisualizer, "quaternion", MeshCat.js_quaternion(q * shape.orientation_offset))
+        # transform(x, q, shape)
     end
     return
 end
@@ -242,7 +283,7 @@ function animate_node!(storage::Storage{T,N}, id, shape, animation, shapevisuali
         x = storage.x[id][i]
         q = storage.q[id][i]
         atframe(animation, frame_id) do
-            set_node!(x, q, shape, shapevisualizer, showshape)
+             set_node!(x, q, shape, shapevisualizer, showshape)
         end
         frame_id += 1
     end
