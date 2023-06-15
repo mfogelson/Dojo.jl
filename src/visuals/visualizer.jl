@@ -263,12 +263,16 @@ MeshCat.js_scaling(s::AbstractVector) = s
 MeshCat.js_position(p::AbstractVector) = p
 
 function set_node!(x, q, shape, shapevisualizer, showshape)
+    # println(showshape)
+
     if showshape
         # TODO currently setting props directly because MeshCat/Rotations doesn't convert scaled rotation properly.
         # If this changes, do similarily to origin
+        #! Mitch Comment: I think that this is morphing the geometries in Dojo
         setprop!(shapevisualizer, "scale", MeshCat.js_scaling(shape.scale))
         setprop!(shapevisualizer, "position", MeshCat.js_position(x + vector_rotate(shape.position_offset, q)))
         setprop!(shapevisualizer, "quaternion", MeshCat.js_quaternion(q * shape.orientation_offset))
+        # transform(x, q, shape)
     end
     return
 end
