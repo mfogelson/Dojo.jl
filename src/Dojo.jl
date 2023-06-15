@@ -122,7 +122,6 @@ include(joinpath("solver", "initialization.jl"))
 include(joinpath("solver", "correction.jl"))
 include(joinpath("solver", "mehrotra.jl"))
 include(joinpath("solver", "line_search.jl"))
-include(joinpath("solver", "initialize_constraints.jl"))
 
 # Integrator
 include(joinpath("integrators", "integrator.jl"))
@@ -281,10 +280,6 @@ export
 export
     mehrotra!,
     SolverOptions
-
-# Initialization
-export 
-    initialize_constraints!, 
 
 # Linear System "Ax = b"
 export
