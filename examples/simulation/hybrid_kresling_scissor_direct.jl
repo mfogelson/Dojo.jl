@@ -3,14 +3,14 @@ using Dojo
 using DojoEnvironments
 
 # ### Simulation Parameters
-timestep = 0.00001
+timestep = 0.001
 
 # ### Scissor Parameters
 unit_width = 0.006
 unit_thickness = 0.006/2
 unit_length = 0.045
 unit_mass = 0.001
-beam_length = 0.266
+beam_length = 0.0266
 diag_length = sqrt(2*beam_length^2*(1 - cos(deg2rad(80))))
 rotation_axis = [1; 0; 0]
 # ### Kresling Parameters
@@ -112,14 +112,15 @@ end
 
 function initialize_kresling!(mechanism, kres_radius, beam_length, diag_length, unit_width, unit_thickness, unit_length)
     set_maximal_configurations!(mechanism.bodies[1], x=[0, 0, 0])
-    set_maximal_configurations!(mechanism.bodies[2], x=[0, 0, 1.8*beam_length+unit_thickness], q=Dojo.RotZ(0))
+    height = 4*beam_length
+    set_maximal_configurations!(mechanism.bodies[2], x=[0, 0, height+unit_thickness], q=Dojo.RotZ(0))
     for i in 1:6
         number_of_units = floor(Int, beam_length/(unit_width))
         # Initialize short members
         for j in 1:number_of_units
             t = (j-1) / (number_of_units-1)
 
-            x = Dojo.rotation_matrix(Dojo.RotZ(0))*[kres_radius*cos((i-1)*pi/3), kres_radius*sin((i-1)*pi/3), (1-t)*unit_thickness/2 + t*(1.8*beam_length+unit_thickness/2)]
+            x = Dojo.rotation_matrix(Dojo.RotZ(0))*[kres_radius*cos((i-1)*pi/3), kres_radius*sin((i-1)*pi/3), (1-t)*unit_thickness/2 + t*(height+unit_thickness/2)]
             q = Dojo.RotZ((i-1)*pi/3+pi/2)*Dojo.RotX((-1)^(j+1)*pi/4)
 
             Dojo.set_maximal_configurations!(get_body(mechanism, Symbol("short_member$(i)_link$(2*j-1)")), x=x, q=q)
@@ -132,7 +133,7 @@ function initialize_kresling!(mechanism, kres_radius, beam_length, diag_length, 
         number_of_units = floor(Int, diag_length/(unit_width))
         for j in 1:number_of_units
             t = (j-1) / (number_of_units-1)
-            x = [(1-t)*kres_radius*cos((i-1)*pi/3) + t*kres_radius*cos((i)*pi/3), (1-t)*kres_radius*sin((i-1)*pi/3) + t*kres_radius*sin((i)*pi/3), (1-t)*unit_thickness + t*(2*beam_length+unit_thickness)]
+            x = [(1-t)*kres_radius*cos((i-1)*pi/3) + t*kres_radius*cos((i)*pi/3), (1-t)*kres_radius*sin((i-1)*pi/3) + t*kres_radius*sin((i)*pi/3), (1-t)*unit_thickness + t*(height+unit_thickness/2)]
             # x = Dojo.rotation_matrix(Dojo.RotY(pi/4))*([0, 0, (j-1)*unit_width] - [0, 0, number_of_units//2*unit_width]) + [kres_radius*cos((i-1)*pi/3+pi/6), kres_radius*sin((i-1)*pi/3+pi/6), number_of_units//2*unit_width]
             θ = 4pi/6+(i-1)*pi/3 # (1-t)*((i-1)*pi/3+pi/2) + t*((i)*pi/3+pi/2)
             q = Dojo.RotY(-pi/14)*Dojo.RotX(-pi/14)*Dojo.RotZ(θ)*Dojo.RotX((-1)^(j+1)*pi/3)
@@ -147,12 +148,14 @@ end
 
 mechanism = get_kresling(kres_radius, beam_length, diag_length, unit_width, unit_thickness, unit_length, unit_mass; timestep=timestep)
 
+zero_coordinates!(mechanism)
 initialize_kresling!(mechanism, kres_radius, beam_length, diag_length, unit_width, unit_thickness, unit_length)
-import Dojo.initialize_constraints!, Dojo.getid, Dojo.joint_residual_violation, Dojo.index_ranges, Dojo.spzeros, Dojo.constraint, Dojo.constraint_jacobian_configuration, Dojo.I, Dojo.VLᵀmat, Dojo.norm, Dojo.constraintstep!, Dojo.violations
 
-fixedidx1 = vcat([(3:4) .+ (i-1)*4 for i in 1:6]...)
+# import Dojo.initialize_constraints!, Dojo.getid, Dojo.joint_residual_violation, Dojo.index_ranges, Dojo.spzeros, Dojo.constraint, Dojo.constraint_jacobian_configuration, Dojo.I, Dojo.VLᵀmat, Dojo.norm, Dojo.constraintstep!, Dojo.violations
 
-fixedidx = vcat([(5:6) .+ fixedidx1[end] .+ (i-1)*6 for i in 1:6]...)
+# fixedidx1 = vcat([(3:4) .+ (i-1)*4 for i in 1:6]...)
+
+# fixedidx = vcat([(5:6) .+ fixedidx1[end] .+ (i-1)*6 for i in 1:6]...)
 
 initialize_constraints!(mechanism, fixedids=[mechanism.bodies[1].id, mechanism.bodies[2].id], regularization=1e-6, lineIter=10, newtonIter=100)
 # Dojo.set_entries!(mechanism)
@@ -167,21 +170,18 @@ end
 # delete!(vis)
 vis = visualize(mechanism; vis=vis, visualize_floor=false, show_frame=false, show_joint=false, joint_radius=0.001)
 
-set_dampers!(mechanism.joints, 100.0)
+set_dampers!(mechanism.joints, 10.0)
 
 mechanism.gravity = [0, 0, -9.81]
 
         
 zero_velocities!(mechanism)
+function control!(mechanism, k)
+    add_external_force!(mechanism.bodies[2], force=[0, 0, -1.0], torque=[0, 0, 1.0])
+end
 # for i in 1:length(mechanism.joints)
 #     mechanism.system.matrix_entries[i,i].value += Dojo.I
 # end
-storage = simulate!(mechanism, 0.1, record=true, opts=SolverOptions(verbose=true))
+@time storage = simulate!(mechanism, 0.5, control!, record=true, opts=SolverOptions(verbose=true))
 
-
-
-# vis = visualize_pose(mechanism; vis=vis, visualize_floor=false, show_frame=false, show_joint=false, joint_radius=0.0001)
-
-initializeConstraints!(mechanism, freeids = getid.(mechanism.bodies), newtonIter = 500, lineIter = 20)
-
-vis = visualize(mechanism; vis=vis, visualize_floor=false, show_frame=true, show_joint=true, joint_radius=0.001)
+vis = visualize(mechanism, storage; vis=vis, visualize_floor=false, show_frame=false, show_joint=false, joint_radius=0.001)
