@@ -18,7 +18,7 @@ function mehrotra!(mechanism::Mechanism{T}; opts=SolverOptions{T}()) where T
     α = 1.0
 
 	initialize!.(mechanism.contacts)
-    set_entries!(mechanism) # compute the residual
+    set_entries!(mechanism, reg=opts.reg) # compute the residual
 
     bvio = bilinear_violation(mechanism) # does not require to apply set_entries!
     rvio = residual_violation(mechanism) # does not require to apply set_entries!
@@ -66,7 +66,7 @@ function mehrotra!(mechanism::Mechanism{T}; opts=SolverOptions{T}()) where T
         update!.(mechanism.contacts)
 
 		# recompute Jacobian and residual
-        set_entries!(mechanism)
+        set_entries!(mechanism, reg=opts.reg)
     end
 
     return status
@@ -75,9 +75,9 @@ end
 function solver_status(mechanism::Mechanism, α, rvio, bvio, n, μtarget, undercut)
     fv = full_vector(mechanism.system)
     Δvar = norm(fv, Inf)
-    fM = full_matrix(mechanism.system)
-    fΔ = fM \ fv
-    Δalt = norm(fΔ, Inf)
+    # fM = full_matrix(mechanism.system)
+    # fΔ = fM \ fv
+    # Δalt = norm(fΔ, Inf)
     res = norm(fv, Inf)
 	println(
         n,

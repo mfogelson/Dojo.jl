@@ -125,9 +125,9 @@ end
 #     rot = :(constraint_jacobian(joint.rotational, joint.impulses[2][joint_impulse_index(joint, 2)]))
 #     return :(cat($tra, $rot, dims=(1,2)))
 # end
-function constraint_jacobian(joint::JointConstraint)
-    tra = constraint_jacobian(joint.translational, joint.impulses[2][joint_impulse_index(joint, 1)])
-    rot = constraint_jacobian(joint.rotational, joint.impulses[2][joint_impulse_index(joint, 2)])
+function constraint_jacobian(joint::JointConstraint; reg::Float64=Dojo.REG)
+    tra = constraint_jacobian(joint.translational, joint.impulses[2][joint_impulse_index(joint, 1)], reg=reg)
+    rot = constraint_jacobian(joint.rotational, joint.impulses[2][joint_impulse_index(joint, 2)], reg=reg)
     return diagonal_cat(tra, rot)
 end
 
@@ -293,8 +293,8 @@ function off_diagonal_jacobians(mechanism, pbody::Body, cbody::Body)
 end
 
 # linear system
-function set_matrix_vector_entries!(mechanism, matrix_entry::Entry, vector_entry::Entry, joint::JointConstraint)
-    matrix_entry.value = constraint_jacobian(joint)
+function set_matrix_vector_entries!(mechanism, matrix_entry::Entry, vector_entry::Entry, joint::JointConstraint; reg::Float64=Dojo.REG)
+    matrix_entry.value = constraint_jacobian(joint, reg=reg)
     vector_entry.value = -constraint(mechanism, joint)
 end
 
