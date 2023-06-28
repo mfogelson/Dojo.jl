@@ -1,4 +1,4 @@
-function set_entries!(mechanism::Mechanism)
+function set_entries!(mechanism::Mechanism; reg::Float64=Dojo.REG)
     system = mechanism.system
 
     for id in reverse(system.dfs_list)
@@ -7,7 +7,7 @@ function set_entries!(mechanism::Mechanism)
         end
 
         node = get_node(mechanism, id)
-        set_matrix_vector_entries!(mechanism, get_entry(system, id, id), get_entry(system, id), node)
+        set_matrix_vector_entries!(mechanism, get_entry(system, id, id), get_entry(system, id), node; reg=reg)
 
         for child_id in children(system,id)
             set_LU!(mechanism, get_entry(system, id, child_id), get_entry(system, child_id, id), node, get_node(mechanism, child_id))

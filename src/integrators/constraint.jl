@@ -79,7 +79,7 @@ function integrator_jacobian_configuration(body::Body{T},
 end
 
 # linear system
-function set_matrix_vector_entries!(mechanism, matrix_entry::Entry, vector_entry::Entry, body::Body)
-    matrix_entry.value = constraint_jacobian_configuration(mechanism, body)
+function set_matrix_vector_entries!(mechanism, matrix_entry::Entry, vector_entry::Entry, body::Body; reg::Float64=Dojo.REG)
+    matrix_entry.value = constraint_jacobian_configuration(mechanism, body, reg=reg)
     vector_entry.value = -constraint(mechanism, body)
 end

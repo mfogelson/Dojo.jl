@@ -43,11 +43,11 @@ function set_solution!(mechanism::Mechanism{T}, sol::AbstractVector) where T
     return nothing
 end
 
-function evaluate_residual!(mechanism::Mechanism, data::AbstractVector, sol::AbstractVector)
+function evaluate_residual!(mechanism::Mechanism, data::AbstractVector, sol::AbstractVector; reg::Float64=Dojo.REG)
     system = mechanism.system
     set_data!(mechanism, data)
     set_solution!(mechanism, sol)
-    set_entries!(mechanism)
+    set_entries!(mechanism, reg=reg)
     return full_vector(system)
 end
 
