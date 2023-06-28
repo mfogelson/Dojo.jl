@@ -16,6 +16,7 @@
 Base.@kwdef mutable struct SolverOptions{T}
     rtol::T=1.0e-6
     btol::T=1.0e-4
+    reg::T=1e-10 
     ls_scale::T=0.5
     max_iter::Int=50
     max_ls=10
@@ -30,6 +31,7 @@ function Base.show(io::IO, mime::MIME{Symbol("text/plain")}, options::SolverOpti
     println(io, "")
     println(io, " rtol:                 "*string(options.rtol))
     println(io, " btol:                 "*string(options.btol))
+    println(io, " regularization:       "*string(options.reg))
     println(io, " ls_scale:             "*string(options.ls_scale))
     println(io, " max_iter:             "*string(options.max_iter))
     println(io, " max_ls:               "*string(options.max_ls))
