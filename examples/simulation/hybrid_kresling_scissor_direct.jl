@@ -3,15 +3,16 @@ using Dojo
 using DojoEnvironments
 
 # ### Simulation Parameters
-timestep = 0.001
+timestep = 0.005
+reg = 1e-6
 
 # ### Scissor Parameters
-unit_width = 0.006
-unit_thickness = 0.006/2
-unit_length = 0.045
-unit_mass = 0.001
-beam_length = 0.0266
-diag_length = sqrt(2*beam_length^2*(1 - cos(deg2rad(80))))
+unit_width = 0.01
+unit_thickness = 0.06/5
+unit_length = 0.45
+unit_mass = 0.01
+beam_length = 0.266
+diag_length = beam_length #sqrt(2*beam_length^2*(1 - cos(deg2rad(80))))
 rotation_axis = [1; 0; 0]
 # ### Kresling Parameters
 kres_radius = beam_length
@@ -82,7 +83,7 @@ function get_kresling(kres_radius, beam_length, diag_length, unit_width, unit_th
 
     for i in 1:6
         ## Short Member
-        body, joint = get_scissor(beam_length, unit_width, unit_thickness, unit_length, unit_mass; name_ext="short_member$(i)", color=RGBA(1.0, 0.0, 0.0, 0.5))
+        body, joint = get_scissor(beam_length, unit_width, unit_thickness, unit_length, unit_mass; name_ext="short_member$(i)", color=RGBA(1.0, 0.75, 0.75, 0.5))
         # # base_joint = JointConstraint(Fixed(origin, body[1]), name=Symbol("Fixed_Base_Joint"))
         # # push!(joints, base_joint)
         append!(bodies, body)
@@ -94,7 +95,7 @@ function get_kresling(kres_radius, beam_length, diag_length, unit_width, unit_th
         push!(joints, bottom_joint)
 
         ## Long Member
-        body, joint = get_scissor(diag_length, unit_width, unit_thickness, unit_length, unit_mass; name_ext="long_member$(i)", color=RGBA(0.0, 1.0, 0.0, 0.5))
+        body, joint = get_scissor(diag_length, unit_width, unit_thickness, unit_length, unit_mass; name_ext="long_member$(i)", color=RGBA(0.75, 1.0, 0.75, 0.5))
         append!(bodies, body)
         append!(joints, joint)
         top_joint = JointConstraint(Spherical(body[end], top; parent_vertex=[0, 0, 0], child_vertex=[kres_radius*cos(2pi/6*i), kres_radius*sin(2pi/6*i), -unit_thickness/2]), name=Symbol("Spherical_Joint_Long_Beam_to_Top$(i)"))
@@ -168,7 +169,7 @@ else
     vis = Visualizer()
 end
 # delete!(vis)
-vis = visualize(mechanism; vis=vis, visualize_floor=false, show_frame=false, show_joint=false, joint_radius=0.001)
+vis = visualize(mechanism; vis=vis, visualize_floor=false, show_frame=false, show_joint=true, joint_radius=0.001)
 
 set_dampers!(mechanism.joints, 10.0)
 
@@ -177,11 +178,12 @@ mechanism.gravity = [0, 0, -9.81]
         
 zero_velocities!(mechanism)
 function control!(mechanism, k)
-    add_external_force!(mechanism.bodies[2], force=[0, 0, -1.0], torque=[0, 0, 1.0])
+    add_external_force!(mechanism.bodies[2], force=[0, 0, 0.0], torque=[0, 0, 1.0])
 end
 # for i in 1:length(mechanism.joints)
 #     mechanism.system.matrix_entries[i,i].value += Dojo.I
 # end
-@time storage = simulate!(mechanism, 0.5, control!, record=true, opts=SolverOptions(verbose=true))
+opts = SolverOptions(verbose=true, reg=reg, max_iter=100)
+@time storage = simulate!(mechanism, 0.5, control!, record=true, opts=opts)
 
 vis = visualize(mechanism, storage; vis=vis, visualize_floor=false, show_frame=false, show_joint=false, joint_radius=0.001)
