@@ -2,15 +2,11 @@ using CSV
 using DataFrames
 using Dojo
 using LinearAlgebra
-# Load CSV file 
-pathname = "/Users/mitchfogelson/Library/CloudStorage/Box-Box/00_Mitch Fogelson/00_Research/00_Niac_Space_Structures/01_HERDS_Fogelson_Thomas_Falcon_Lipton_Manchester/HERDS_design_optimization_final"
-filename = joinpath(pathname, "falcon_PET_finalState_mass.csv")
-df = CSV.File(filename, header=["name", "units", "value"]) |> DataFrame
-
+using JLD2
 # Get values from DataFrame
 get_param_value(key) = df[findall(isequal(key), df[!, :name]), :value]
 
-using DataFrames
+# using DataFrames
 
 function convert_to_meters(s::String)
     # Split the string into value and unit
@@ -41,17 +37,25 @@ end
 
 get_param_value(df, key) = df[findall(isequal(key), df[!, :name]), :value]
 
+# Load CSV file 
+pathname = "/mnt/nvme/home/mitch/.julia/dev/Dojo/HERDS_design_optimization_final"
+filename = joinpath(pathname, "falcon_PET_finalState_mass.csv")
+df = CSV.File(filename, header=["name", "units", "value"]) |> DataFrame
+
 thickness = get_param_value_in_meters(df, "thickness")/1000.0
 l1 = get_param_value_in_meters(df, "l1")
 l2 = get_param_value_in_meters(df, "l2")
 l3 = get_param_value_in_meters(df, "l3")
 αf = get_param_value_in_meters(df, "alpha")
+βf = get_param_value_in_meters(df, "beta")
+
+filename = joinpath(pathname, "falcon_PET_initialState_mass.csv")
+df = CSV.File(filename, header=["name", "units", "value"]) |> DataFrame
 α0 = get_param_value_in_meters(df, "alpha")
 α = [α0, αf]
-βf = get_param_value_in_meters(df, "beta")
 β0 = get_param_value_in_meters(df, "beta")
 β = [β0, βf]
-ind = 2
+# ind = 2
 # ### Parameters
 const RADIUS = thickness
 const SHORT_LENGTH = 2*l1 
@@ -97,6 +101,26 @@ const LINE_ITER = 10
 const NEWTON_ITER = 400
 const DEBUG = false
 const EPSILON = 1e-10
+
+function uniquify(filename)
+    while isfile(filename)
+        split_filename = split(filename, ".")
+        if occursin("(", split_filename[1])
+            # update the value inside the parentheses by 1
+            split_filename[1] = split(split_filename[1], " ")[1]*" ($(parse(Int, split(split_filename[1], " ")[2][2:end-1])+1)"*")"
+        else
+            # add a new parentheses with value 1
+            split_filename[1] = split_filename[1]*" (1)"
+        end
+        # recombine the filename
+        filename = join(split_filename, ".")
+    end
+    # # recursively call uniquify until unique filename is found
+    # uniquify(filename)
+
+
+    return filename
+end
 
 function create_revolute_joint_constraint(parent, child, rotation_axis, parent_vertex, child_vertex, name_ext, i, j, kind; noise=0.0) #2.54e-5)
     # Joint naming convention: joint, cell, link, abbreviated to j, c, and l respectively
@@ -393,8 +417,63 @@ function initialize_PET!(mechanism, α, β, θ, c, NUM_CELL)
     end
 end
 
+function run_tolerance_analysis(num_runs, num_poses, num_cells, noise)
+    # create vector of vector for errors of each 100 trial and 10 poses
+    errors = zeros(num_runs, num_poses) 
 
+    NUM_CELL = num_cells
+    # noise = 0.0
+    for seed in 1:num_runs
+        # Display the run number
+        println("Run $seed out of $num_runs...")
 
+        # set random seed 
+        srand(seed)
+        for ind in 1:num_poses
+            # Make Mechanism with noise
+            mechanism = get_PET(αs[ind], NUM_CELL, noise)
+
+            # Initialize configuration Guess
+            initialize_PET!(mechanism, αs[ind], β_check[ind], θs[ind], cs[ind], NUM_CELL)
+
+            # Newtons method to solve constraints
+            res = initialize_constraints!(mechanism, 
+                                        fixedids=[get_body(mechanism, Symbol("long:c1:l1")).id, get_body(mechanism, Symbol("long:c1:l2")).id],
+                                        regularization=1e-6, #1e-10^(10*i),
+                                        lineIter=LINE_ITER, 
+                                        newtonIter=NEWTON_ITER,
+                                        debug=DEBUG,
+                                        ε = EPSILON)
+
+            # Save Error reading
+            errors[seed, ind] = Dojo.loss(mechanism)
+                                            
+        end
+    end
+    # Save errors
+    save(uniquify("PET_jamming_test_noise_$(noise)_run_$(num_runs)_pose_$(num_poses)_cell_$(num_cells).jld2"), "errors", errors)
+end
+
+run_tolerance_analysis(10, 10, 1, 0.0)
+
+out = load("PET_jamming_test_noise_0.0_run_2_pose_10_cell_1.jld2")["errors"]
+using Plots
+plot(θs, out[1,:], label="Run 1")
+plot!(θs, out[2,:], label="Run 2")
+
+#########################
+errors = load("PET_jamming_test_noise_2e-5_100_10.jld2", "errors")
+using Plots
+histogram(sum(errors, dims=2)./10, bins=30, alpha=0.7, label="Average Joint Errors")
+histogram(sum(zeros(100,10), dims=2)./10, bins=30, alph=0.7, label="Sum of Joint Errors (No Noise)")
+
+plot()
+using JLD2
+save("PET_jamming_test_noise_2e-5_01.jld2", "errors", errors)
+
+vis = visualize(mechanism; vis=vis, visualize_floor=false, show_frame=true, show_joint=true, joint_radius=0.005)
+
+#######################
 # Initialize mechanism
 ind = 10
 NUM_CELL = 3
@@ -505,88 +584,8 @@ for seed in 1:10
       
     end
 end
-
-errors
-
 # errors
-using JLD2
-save("PET_jamming_test_noise_0.0_10_10_varying_cells.jld2", "errors", errors)
-using Plots
-plot(θs, errors[1,:], label="1 cell")
-# for loop over the rest 
-for i in 2:10
-    plot!(θs, errors[i,:], label="$i cells")
-end
-plot!()
-# plot the average error over all cells
-plot!(θs, Dojo.mean(errors, dims=1)',     label="Average Error")
-# plot variance lines as well 
-plot!(θs, Dojo.mean(errors, dims=1)' .+ Dojo.std(errors, dims=1)', label="Average Error + Std")
-plot!(θs, Dojo.mean(errors, dims=1)' .- Dojo.std(errors, dims=1)', label="Average Error - Std")
-
-
-using Plots
-
-# Define a soft color for the true data and a distinct color for the mean
-true_data_color = :blue
-mean_color = :red
-
-# Plot the true data with reduced alpha for lesser prominence
-plot(θs, errors[1,:], label="1 cell", alpha=0.3, color=true_data_color)
-for i in 2:10
-    plot!(θs, errors[i,:], label="$i cells", alpha=0.3, color=true_data_color)
-end
-
-# Compute the mean and standard deviation
-mean_values = Dojo.mean(errors, dims=1)'
-# upper_bound = mean_values .+ Dojo.std(errors, dims=1)'
-# lower_bound = mean_values .- Dojo.std(errors, dims=1)'
-std_values = Dojo.std(errors, dims=1)'
-
-# Plot the shaded region between the standard deviation
-# plot!(θs, upper_bound, ribbon=(upper_bound - lower_bound), fillalpha=0.2, color=mean_color, label="±1 Std Dev", legend=:topright)
-
-# Highlight the average error over all cells
-# plot!(θs, mean_values, linewidth=2, color=mean_color, label="Average Error")
-plot!(θs, mean_values, ribbon=std_values, fillalpha=0.2, color=mean_color, label="Average Error ±1 Std Dev", legend=:topright)
-
-
-using Plots
-
-using Plots
-
-# Define a soft color for the true data and a distinct color for the mean
-true_data_color = :blue
-mean_color = :red
-
-# Start the plot with the axis labels
-plot(θs, errors[1,:], alpha=0.3, color=true_data_color, label=nothing, 
-     xlabel="θ [rad]", ylabel="(|joint_error|₂)² [m²]")
-
-# Continue plotting the true data
-for i in 2:9
-    plot!(θs, errors[i,:], alpha=0.3, color=true_data_color, label=nothing)
-end
-plot!(θs, errors[10,:], alpha=0.3, color=true_data_color, label=nothing)
-
-# Compute the mean and standard deviation
-mean_values = Dojo.mean(errors, dims=1)'
-std_values = Dojo.std(errors, dims=1)'
-
-# Plot the shaded region between the standard deviation
-plot!(θs, mean_values, ribbon=std_values, fillalpha=0.2, color=mean_color, label="Average Error ±1 Std Dev", legend=:topright)
-
-# Annotate the "1 cell" and "10 cell" lines with arrows and text
-middle_idx = length(θs) ÷ 2  # Choose a midpoint for the annotation
-annotate!([(θs[middle_idx], errors[1, middle_idx], text("1 cell", :left, 10)),
-          (θs[middle_idx], errors[10, middle_idx], text("10 cells", :left, 10))])
-
-# Annotate "Deployed" on the left and "Collapsed" on the right of the x-axis
-ymin, ymax = ylims()  # Get current y-axis limits
-annotate!([(θs[end-1], ymin - 0.1 * (ymax - ymin), text("Deployed", :right, 10)),
-          (θs[4], ymin - 0.1 * (ymax - ymin), text("Collapsed", :left, 10))])
-plot!()
-
+save("PET_jamming_test_noise_2e-5_100_10.jld2", "errors", errors)
 errors = load("PET_jamming_test_noise_2e-5_100_10.jld2", "errors")
 using Plots
 histogram(sum(errors, dims=2)./10, bins=30, alpha=0.7, label="Average Joint Errors")
