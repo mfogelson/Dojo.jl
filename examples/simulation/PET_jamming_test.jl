@@ -2,15 +2,11 @@ using CSV
 using DataFrames
 using Dojo
 using LinearAlgebra
-# Load CSV file 
-pathname = "/Users/mitchfogelson/Library/CloudStorage/Box-Box/00_Mitch Fogelson/00_Research/00_Niac_Space_Structures/01_HERDS_Fogelson_Thomas_Falcon_Lipton_Manchester/HERDS_design_optimization_final"
-filename = joinpath(pathname, "falcon_PET_finalState_mass.csv")
-df = CSV.File(filename, header=["name", "units", "value"]) |> DataFrame
-
+using JLD2
 # Get values from DataFrame
 get_param_value(key) = df[findall(isequal(key), df[!, :name]), :value]
 
-using DataFrames
+# using DataFrames
 
 function convert_to_meters(s::String)
     # Split the string into value and unit
@@ -41,17 +37,25 @@ end
 
 get_param_value(df, key) = df[findall(isequal(key), df[!, :name]), :value]
 
+# Load CSV file 
+pathname = "/mnt/nvme/home/mitch/.julia/dev/Dojo/HERDS_design_optimization_final"
+filename = joinpath(pathname, "falcon_PET_finalState_mass.csv")
+df = CSV.File(filename, header=["name", "units", "value"]) |> DataFrame
+
 thickness = get_param_value_in_meters(df, "thickness")/1000.0
 l1 = get_param_value_in_meters(df, "l1")
 l2 = get_param_value_in_meters(df, "l2")
 l3 = get_param_value_in_meters(df, "l3")
 αf = get_param_value_in_meters(df, "alpha")
+βf = get_param_value_in_meters(df, "beta")
+
+filename = joinpath(pathname, "falcon_PET_initialState_mass.csv")
+df = CSV.File(filename, header=["name", "units", "value"]) |> DataFrame
 α0 = get_param_value_in_meters(df, "alpha")
 α = [α0, αf]
-βf = get_param_value_in_meters(df, "beta")
 β0 = get_param_value_in_meters(df, "beta")
 β = [β0, βf]
-ind = 2
+# ind = 2
 # ### Parameters
 const RADIUS = thickness
 const SHORT_LENGTH = 2*l1 
@@ -97,6 +101,26 @@ const LINE_ITER = 10
 const NEWTON_ITER = 400
 const DEBUG = false
 const EPSILON = 1e-10
+
+function uniquify(filename)
+    while isfile(filename)
+        split_filename = split(filename, ".")
+        if occursin("(", split_filename[1])
+            # update the value inside the parentheses by 1
+            split_filename[1] = split(split_filename[1], " ")[1]*" ($(parse(Int, split(split_filename[1], " ")[2][2:end-1])+1)"*")"
+        else
+            # add a new parentheses with value 1
+            split_filename[1] = split_filename[1]*" (1)"
+        end
+        # recombine the filename
+        filename = join(split_filename, ".")
+    end
+    # # recursively call uniquify until unique filename is found
+    # uniquify(filename)
+
+
+    return filename
+end
 
 function create_revolute_joint_constraint(parent, child, rotation_axis, parent_vertex, child_vertex, name_ext, i, j, kind; noise=0.0) #2.54e-5)
     # Joint naming convention: joint, cell, link, abbreviated to j, c, and l respectively
@@ -393,8 +417,63 @@ function initialize_PET!(mechanism, α, β, θ, c, NUM_CELL)
     end
 end
 
+function run_tolerance_analysis(num_runs, num_poses, num_cells, noise)
+    # create vector of vector for errors of each 100 trial and 10 poses
+    errors = zeros(num_runs, num_poses) 
 
+    NUM_CELL = num_cells
+    # noise = 0.0
+    for seed in 1:num_runs
+        # Display the run number
+        println("Run $seed out of $num_runs...")
 
+        # set random seed 
+        srand(seed)
+        for ind in 1:num_poses
+            # Make Mechanism with noise
+            mechanism = get_PET(αs[ind], NUM_CELL, noise)
+
+            # Initialize configuration Guess
+            initialize_PET!(mechanism, αs[ind], β_check[ind], θs[ind], cs[ind], NUM_CELL)
+
+            # Newtons method to solve constraints
+            res = initialize_constraints!(mechanism, 
+                                        fixedids=[get_body(mechanism, Symbol("long:c1:l1")).id, get_body(mechanism, Symbol("long:c1:l2")).id],
+                                        regularization=1e-6, #1e-10^(10*i),
+                                        lineIter=LINE_ITER, 
+                                        newtonIter=NEWTON_ITER,
+                                        debug=DEBUG,
+                                        ε = EPSILON)
+
+            # Save Error reading
+            errors[seed, ind] = Dojo.loss(mechanism)
+                                            
+        end
+    end
+    # Save errors
+    save(uniquify("PET_jamming_test_noise_$(noise)_run_$(num_runs)_pose_$(num_poses)_cell_$(num_cells).jld2"), "errors", errors)
+end
+
+run_tolerance_analysis(10, 10, 1, 0.0)
+
+out = load("PET_jamming_test_noise_0.0_run_2_pose_10_cell_1.jld2")["errors"]
+using Plots
+plot(θs, out[1,:], label="Run 1")
+plot!(θs, out[2,:], label="Run 2")
+
+#########################
+errors = load("PET_jamming_test_noise_2e-5_100_10.jld2", "errors")
+using Plots
+histogram(sum(errors, dims=2)./10, bins=30, alpha=0.7, label="Average Joint Errors")
+histogram(sum(zeros(100,10), dims=2)./10, bins=30, alph=0.7, label="Sum of Joint Errors (No Noise)")
+
+plot()
+using JLD2
+save("PET_jamming_test_noise_2e-5_01.jld2", "errors", errors)
+
+vis = visualize(mechanism; vis=vis, visualize_floor=false, show_frame=true, show_joint=true, joint_radius=0.005)
+
+#######################
 # Initialize mechanism
 ind = 10
 NUM_CELL = 3
@@ -447,78 +526,6 @@ Dojo.loss(mechanism)
 vis = Visualizer()
 delete!(vis)
 vis = visualize(mechanism; vis=vis, visualize_floor=false, show_frame=false, show_joint=true, joint_radius=0.005)
-# viol = [Dojo.joint_residual_violation(mechanism, joint) for joint in mechanism.joints]
-# loss = viol'*I*viol
-
-# Dojo.violation(mchanism)
-
-# create vector of vector for errors of each 100 trial and 10 poses
-errors = zeros(10, 10) 
-errors_no_noise = zeros(1, 10)
-errors_over_cells = zeros(10, 10)
-NUM_CELL = 3
-noise = 0.0
-for seed in 1:10
-    # set random seed 
-    NUM_CELL = seed
-    srand(seed)
-    for ind in 1:10
-        # a = as[ind]
-        # b = bs[ind]
-        c = cs[ind]
-        # d1 = d1s[ind]
-        # d2 = d2s[ind]
-        α = αs[ind]
-        β = β_check[ind]
-        θ = θs[ind] #acos(max(-1.0, (a^2-2*b^2)/(-2*b^2))) # cos theta
-        # ind = 10
-        # NUM_CELL = 3
-        mechanism = get_PET(αs[ind], NUM_CELL, noise)
-        initialize_PET!(mechanism, αs[ind], β_check[ind], θs[ind], cs[ind], NUM_CELL)
-        # for i in 0:10
-        #     # println("Initializing constraints: iteration $i out of 10")
-        #     try
-        res = initialize_constraints!(mechanism, 
-                                    fixedids=[get_body(mechanism, Symbol("long:c1:l1")).id, get_body(mechanism, Symbol("long:c1:l2")).id],
-                                    regularization=1e-6, #1e-10^(10*i),
-                                    lineIter=LINE_ITER, 
-                                    newtonIter=NEWTON_ITER,
-                                    debug=DEBUG,
-                                    ε = EPSILON)
-        errors[seed, ind] = Dojo.loss(mechanism)
-                                        
-        #         if i == 10
-        #             # push!(errors, res)
-        #             # errors[seed, ind] = res
-        #             if res === nothing
-        #                 errors_over_cells[seed, ind] = 0.0
-        #             else
-        #                 errors_over_cells[seed, ind] = res
-        #             end
-        #             # errors_no_noise[seed, ind] = res
-        #         end
-        #         # vis = visualize(mechanism; vis=vis, visualize_floor=false, show_frame=true, show_joint=true, joint_radius=0.005)
-        #     catch e
-        #         println("Error during initialization on iteration $i: $e")
-        #     end
-        # end
-      
-    end
-end
-# errors
-save("PET_jamming_test_noise_2e-5_100_10.jld2", "errors", errors)
-errors = load("PET_jamming_test_noise_2e-5_100_10.jld2", "errors")
-using Plots
-histogram(sum(errors, dims=2)./10, bins=30, alpha=0.7, label="Average Joint Errors")
-histogram(sum(zeros(100,10), dims=2)./10, bins=30, alph=0.7, label="Sum of Joint Errors (No Noise)")
-
-plot()
-using JLD2
-save("PET_jamming_test_noise_2e-5_01.jld2", "errors", errors)
-
-vis = visualize(mechanism; vis=vis, visualize_floor=false, show_frame=true, show_joint=true, joint_radius=0.005)
-
-
 # function constraintstep!(mechanism::Mechanism{T}, freebodies::Vector{Body{T}}; regularization=1e-6) where T
 # Fetching all the free bodies
 # freebodies = [get_body(mechanism, id) for id in freeids]
