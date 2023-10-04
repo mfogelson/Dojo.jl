@@ -505,8 +505,88 @@ for seed in 1:10
       
     end
 end
+
+errors
+
 # errors
-save("PET_jamming_test_noise_2e-5_100_10.jld2", "errors", errors)
+using JLD2
+save("PET_jamming_test_noise_0.0_10_10_varying_cells.jld2", "errors", errors)
+using Plots
+plot(θs, errors[1,:], label="1 cell")
+# for loop over the rest 
+for i in 2:10
+    plot!(θs, errors[i,:], label="$i cells")
+end
+plot!()
+# plot the average error over all cells
+plot!(θs, Dojo.mean(errors, dims=1)',     label="Average Error")
+# plot variance lines as well 
+plot!(θs, Dojo.mean(errors, dims=1)' .+ Dojo.std(errors, dims=1)', label="Average Error + Std")
+plot!(θs, Dojo.mean(errors, dims=1)' .- Dojo.std(errors, dims=1)', label="Average Error - Std")
+
+
+using Plots
+
+# Define a soft color for the true data and a distinct color for the mean
+true_data_color = :blue
+mean_color = :red
+
+# Plot the true data with reduced alpha for lesser prominence
+plot(θs, errors[1,:], label="1 cell", alpha=0.3, color=true_data_color)
+for i in 2:10
+    plot!(θs, errors[i,:], label="$i cells", alpha=0.3, color=true_data_color)
+end
+
+# Compute the mean and standard deviation
+mean_values = Dojo.mean(errors, dims=1)'
+# upper_bound = mean_values .+ Dojo.std(errors, dims=1)'
+# lower_bound = mean_values .- Dojo.std(errors, dims=1)'
+std_values = Dojo.std(errors, dims=1)'
+
+# Plot the shaded region between the standard deviation
+# plot!(θs, upper_bound, ribbon=(upper_bound - lower_bound), fillalpha=0.2, color=mean_color, label="±1 Std Dev", legend=:topright)
+
+# Highlight the average error over all cells
+# plot!(θs, mean_values, linewidth=2, color=mean_color, label="Average Error")
+plot!(θs, mean_values, ribbon=std_values, fillalpha=0.2, color=mean_color, label="Average Error ±1 Std Dev", legend=:topright)
+
+
+using Plots
+
+using Plots
+
+# Define a soft color for the true data and a distinct color for the mean
+true_data_color = :blue
+mean_color = :red
+
+# Start the plot with the axis labels
+plot(θs, errors[1,:], alpha=0.3, color=true_data_color, label=nothing, 
+     xlabel="θ [rad]", ylabel="(|joint_error|₂)² [m²]")
+
+# Continue plotting the true data
+for i in 2:9
+    plot!(θs, errors[i,:], alpha=0.3, color=true_data_color, label=nothing)
+end
+plot!(θs, errors[10,:], alpha=0.3, color=true_data_color, label=nothing)
+
+# Compute the mean and standard deviation
+mean_values = Dojo.mean(errors, dims=1)'
+std_values = Dojo.std(errors, dims=1)'
+
+# Plot the shaded region between the standard deviation
+plot!(θs, mean_values, ribbon=std_values, fillalpha=0.2, color=mean_color, label="Average Error ±1 Std Dev", legend=:topright)
+
+# Annotate the "1 cell" and "10 cell" lines with arrows and text
+middle_idx = length(θs) ÷ 2  # Choose a midpoint for the annotation
+annotate!([(θs[middle_idx], errors[1, middle_idx], text("1 cell", :left, 10)),
+          (θs[middle_idx], errors[10, middle_idx], text("10 cells", :left, 10))])
+
+# Annotate "Deployed" on the left and "Collapsed" on the right of the x-axis
+ymin, ymax = ylims()  # Get current y-axis limits
+annotate!([(θs[end-1], ymin - 0.1 * (ymax - ymin), text("Deployed", :right, 10)),
+          (θs[4], ymin - 0.1 * (ymax - ymin), text("Collapsed", :left, 10))])
+plot!()
+
 errors = load("PET_jamming_test_noise_2e-5_100_10.jld2", "errors")
 using Plots
 histogram(sum(errors, dims=2)./10, bins=30, alpha=0.7, label="Average Joint Errors")
