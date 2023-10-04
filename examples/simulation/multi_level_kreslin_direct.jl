@@ -23,7 +23,7 @@ reg = 1e-6
 gravity = [0, 0, 0.0]
 
 # System Params
-num_cells = 2
+num_cells = 1
 
 # ### Make system
 origin = Origin()
@@ -57,7 +57,7 @@ for i in 1:num_cells
 end
 
 # ### Make joints
-floating_joint = JointConstraint(Floating(origin, plates[1]), name=Symbol("floating_joint"))
+floating_joint = JointConstraint(Fixed(origin, plates[1]), name=Symbol("floating_joint"))
 push!(joints[1], floating_joint)
 
 for i in 1:num_cells
@@ -166,7 +166,7 @@ end
 
 mechanism = Mechanism(mechanism.origin, mechanism.bodies, joints; gravity, timestep)
         # joints = set_limits(mechanism, joint_limits)
-set_dampers!(mechanism.joints, 0.0)
+set_dampers!(mechanism.joints, 10.0)
 # if isdefined(Main, :vis)
 #     # If it exists, delete it
 #     delete!(vis)
@@ -176,9 +176,26 @@ set_dampers!(mechanism.joints, 0.0)
 # end
 vis = Visualizer()
 vis = visualize(mechanism; vis=vis, visualize_floor=false, show_frame=true, show_joint=true, joint_radius=0.05)
+
+function control!(mechanism, t)
+    top = get_body(mechanism, Symbol("plate_2"))
+
+    τext = [0, 0, 100.0]
+    Fext = [0, 0.0, 0.0]
+    set_external_force!(top, force=Fext, torque=τext)
+    
+end
+Tf = 1.0 
+timesteps = 0:mechanism.timestep:Tf
+steps = length(timesteps)
+storage = Storage(steps, length(mechanism.bodies))
+opts = SolverOptions(verbose=false, reg=reg, max_iter=100)
+simulate!(mechanism, 1:steps, storage, control!, record=true, opts=opts)
+vis = visualize(mechanism, storage; vis=vis, visualize_floor=false, show_frame=false, show_joint=true, joint_radius=0.03)
+
 # if !isdefined(Main, :collapsed_state)
-collapsed_state = load("media/kresling/kresling_2_cells_collapsed_state.jld2")["collapsed_state"]
-set_maximal_state!(mechanism, collapsed_state)
+# collapsed_state = load("media/kresling/kresling_2_cells_collapsed_state.jld2")["collapsed_state"]
+# set_maximal_state!(mechanism, collapsed_state)
 # else
 # function control!(mechanism, t)
 #     bottom = get_body(mechanism, Symbol("plate_1"))
@@ -194,14 +211,8 @@ set_maximal_state!(mechanism, collapsed_state)
 #         end
 #     end
 # end
-# Tf = 1.0 
-# timesteps = 0:mechanism.timestep:Tf
-# steps = length(timesteps)
-# storage = Storage(steps, length(mechanism.bodies))
-# opts = SolverOptions(verbose=false, reg=reg, max_iter=100)
-# storage1 = simulate!(mechanism, Tf, control!, record=true, opts=opts)
 
-vis = visualize(mechanism; vis=vis, visualize_floor=false, show_frame=false, show_joint=true, joint_radius=0.03)
+
 
 collapsed_state = get_maximal_state(mechanism)
 

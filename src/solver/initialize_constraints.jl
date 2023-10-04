@@ -123,7 +123,11 @@ function constraintstep_qr!(mechanism::Mechanism{T}, freebodies::Vector{Body{T}}
     return 
 end
 
-violations(mechanism) = [joint_residual_violation(mechanism, joint) for joint in mechanism.joints]
+max_violations(mechanism) = [joint_residual_violation(mechanism, joint) for joint in mechanism.joints]
+
+residual(mechanism) = Vector(vcat([constraint(mechanism, joint) for joint in mechanism.joints]...))
+
+loss(mechanism) = residual(mechanism)'*I*residual(mechanism)
 
 function initialize_constraints!(mechanism::Mechanism{T}; fixedids = Int64[], freeids = Int64[], ε = 1e-5, newtonIter = 100, lineIter = 10, regularization = 1e-6, debug=false) where T
     # Initialize the array of free bodies
@@ -143,7 +147,7 @@ function initialize_constraints!(mechanism::Mechanism{T}; fixedids = Int64[], fr
     end
 
     # Get the initial maximum violation of constraints
-    norm0 = maximum(violations(mechanism))
+    norm0 = loss(mechanism) #maximum(violations(mechanism))
     norm1 = norm0
 
     # Newton-Raphson iterations
@@ -156,7 +160,7 @@ function initialize_constraints!(mechanism::Mechanism{T}; fixedids = Int64[], fr
         end
 
         # Compute the constraint step
-        constraintstep!(mechanism, freebodies, regularization=regularization) 
+        constraintstep_qr!(mechanism, freebodies, regularization=regularization) 
 
         # Line search
         for j = Base.OneTo(lineIter)
@@ -171,7 +175,7 @@ function initialize_constraints!(mechanism::Mechanism{T}; fixedids = Int64[], fr
             end
 
             # Compute the maximum constraint violation
-            norm1 = maximum(violations(mechanism))
+            norm1 = loss(mechanism) #maximum(violations(mechanism))
 
             # If violation decreased, exit line search
             if norm1 < norm0 
@@ -204,6 +208,9 @@ function initialize_constraints!(mechanism::Mechanism{T}; fixedids = Int64[], fr
     end
 
     # If we get here, the Newton-Raphson method did not converge
-    display("Constraint initialization did not converge! Tolerance: "*string(norm1))
-    return 
+    if debug
+        println("Constraint initialization did not converge! Tolerance: "*string(norm1))
+    end
+    # display("Constraint initialization did not converge! Tolerance: "*string(norm1))
+    return norm1
 end
