@@ -14,7 +14,7 @@ damper = 1.0
 timestep = 0.005
 reg = 1e-7
 
-num_cells = 2
+num_cells = 10
 
 
 # ### Mechanism components

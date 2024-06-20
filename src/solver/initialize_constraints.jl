@@ -103,11 +103,41 @@ function constraintstep_qr!(mechanism::Mechanism{T}, freebodies::Vector{Body{T}}
     end
 
     # println([con_jac; I(num_bodies)*regularization])
-
+    function data_attitude_jacobian_config(body::Body)
+        # [m,flat(J),x1,q1,x2,q2]
+        x2, q2 = Dojo.current_configuration(body.state)
+        attjac = cat(I(3), Dojo.LVᵀmat(q2), dims=(1,2))
+        return attjac
+    end
 
     # Solving for the step vector with L2 regularization
     # stepvec = -([con_jac; I(num_bodies)*regularization])\[res; zeros(num_bodies)]
-    stepvec = -(con_jac'*con_jac+I(num_bodies)*regularization)\(con_jac'*res)
+    # stepvec = -(con_jac'*con_jac+I(num_bodies)*regularization)\(con_jac'*res)
+    attjac = cat(data_attitude_jacobian_config.(freebodies)..., dims=(1,2))
+    # println(size(con_jac), size(attjac))
+    A = (con_jac+I*regularization)*attjac # con_jac'*con_jac+I(num_bodies)*regularization
+    b = res
+    #F = svd(collect(A), full=true)
+    F = svd(A, full=true, alg=LinearAlgebra.QRIteration())
+    rank = sum(F.S .> 1e-3)
+    # println(rank)
+    V1 = @view F.V[:,1:rank]
+    S1 = @view F.S[1:rank]
+    U1 = @view F.U[:,1:rank]
+    # V2 = @view F.V[:,rank+1:end]
+    # S2 = @view F.S[rank+1:end]
+    # U2 = @view F.U[:,rank+1:end]
+
+    stepvec = -V1*Diagonal(1.0 ./ S1)*U1'*b
+    stepvec = attjac*stepvec
+    # y1 = (Diagonal(1. ./ S1) * U1') * b[]
+    # # λ = (1.0/h*U1*Diagonal(1. ./ S1)) * (V1'*rhs[1:3]-V1'*M*V1*y1)
+    # y2 = (V2'M*V2) \ (V2'*rhs[1:3])
+    # # y2 = (M*V2) \ (rhs[1:3]-M*V1*y1+V1*Diagonal(S1)*U1'*λ)
+
+    # # Calculate the update for the position and velocity
+    # du = V1*y1+V2*y2
+    # stepvec = -F.V*(F.S\F.U'*(con_jac'*res))
 
     # Updating the states of all free bodies
     for (i,(body, b_idx)) in enumerate(zip(freebodies, body_idx))

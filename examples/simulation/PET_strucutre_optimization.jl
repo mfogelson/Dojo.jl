@@ -149,7 +149,7 @@ function optimize_configuration(; VEHICAL_NAME, DIAMETER, MASS, INITIAL_HEIGHT, 
 
     #######################################################################
     scale = 2.0*1000.0
-    @NLobjective(model, Min, ((l1+l2+l3)*scale)/((thickness*scale)^4))
+    @NLobjective(model, Min, ((l1+l2+l3)*scale)/((thickness*scale)))
     optimize!(model)
 
     #######################################################################
