@@ -277,7 +277,7 @@ vis = visualize(mechanism, storage; vis=vis, visualize_floor=false, show_frame=t
 # @save "hybrid_kresling_1_cell_close_explosion_sim_$(Fext)_Fext_$(Text)_Text.jld2" mechanism storage
 
 
-unction set_maximal_state!(mechanism::Mechanism, storage::Storage; ind=1)
+function set_maximal_state!(mechanism::Mechanism, storage::Storage; ind=1)
     for (body, x, q, ω, v) in zip(mechanism.bodies, storage.x, storage.q, storage.ω, storage.v)
         body.state.x1 = x[ind]
         body.state.x2 = x[ind]

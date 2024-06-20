@@ -94,38 +94,38 @@ xk_ = reshape([[-1.        , -1.0038898 , -0.94533894, -0.75629343,
 xk = symbolic_kinematics(xi, xj, xk0)
 @assert norm(xk-xk_) < 1e-6
 
-function initialize_closed_chian()
-    """Update self.paths
-    Args:
-        unknown_joints (list, optional): node indexes that are not known or want to be calculated. Defaults to None.
-    """
-    n = self.number_of_nodes()
+# function initialize_closed_chian()
+#     """Update self.paths
+#     Args:
+#         unknown_joints (list, optional): node indexes that are not known or want to be calculated. Defaults to None.
+#     """
+#     n = self.number_of_nodes()
     
-    if unknown_joints is None:
-        known_joints = list(np.argwhere(self.node_type == 0)[:,0])
-        known_joints.append(1) #(np.argwhere(self.adj[0,:] == 1).item()) #TODO: Fix this
-        unknown_joints = list(set(range(n)) ^ set(known_joints)) 
-    else:
-        assert isinstance(unknown_joints, list)
-        known_joints = list(set(range(n)) ^ set(unknown_joints))
+#     if unknown_joints is None:
+#         known_joints = list(np.argwhere(self.node_type == 0)[:,0])
+#         known_joints.append(1) #(np.argwhere(self.adj[0,:] == 1).item()) #TODO: Fix this
+#         unknown_joints = list(set(range(n)) ^ set(known_joints)) 
+#     else:
+#         assert isinstance(unknown_joints, list)
+#         known_joints = list(set(range(n)) ^ set(unknown_joints))
 
 
-    count = 0
-    while list(set(range(n)) ^ set(known_joints)) != [] and count < 100:
+#     count = 0
+#     while list(set(range(n)) ^ set(known_joints)) != [] and count < 100:
 
-        for i in unknown_joints[:]:
+#         for i in unknown_joints[:]:
             
-            if sum(self.adj[i, known_joints]) >= 2:
+#             if sum(self.adj[i, known_joints]) >= 2:
 
 
-                inds = np.array(known_joints)[np.where(self.adj[i, known_joints] >= 1)[0]]
+#                 inds = np.array(known_joints)[np.where(self.adj[i, known_joints] >= 1)[0]]
 
-                # Update paths
-                self.paths[i, :, :] = symbolic_kinematics(self.paths[inds[0],:,:], self.paths[inds[1], :, :], self.paths[i, :, 0])
+#                 # Update paths
+#                 self.paths[i, :, :] = symbolic_kinematics(self.paths[inds[0],:,:], self.paths[inds[1], :, :], self.paths[i, :, 0])
                 
-                unknown_joints.remove(i)
-                known_joints.append(i)
-            else:
-                pass
-        count += 1
-end
+#                 unknown_joints.remove(i)
+#                 known_joints.append(i)
+#             else:
+#                 pass
+#         count += 1
+# end
