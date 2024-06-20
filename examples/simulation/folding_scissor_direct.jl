@@ -8,8 +8,8 @@ using DojoEnvironments
 radius = 0.1
 short_length = 44.60/10
 
-long_length = 77.68/10
-bot_length = 68.42/10 #3/2*short_length #44.60/10 #68.42/10
+long_length = 2.0*short_length; #77.68/10
+bot_length = 0.5*long_length #68.42/10 #3/2*short_length #44.60/10 #68.42/10
 mass = 0.001
 parent_vertex = [0, 0, bot_length/2]
 middle_vertex = [0, 0, -(long_length-bot_length)/4]
