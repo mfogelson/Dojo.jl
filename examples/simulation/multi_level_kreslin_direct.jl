@@ -23,7 +23,7 @@ reg = 1e-6
 gravity = [0, 0, 0.0]
 
 # System Params
-num_cells = 1
+num_cells = 2
 
 # ### Make system
 origin = Origin()
@@ -146,7 +146,14 @@ end
 set_maximal_configurations!(get_body(mechanism, Symbol("plate_$(num_cells+1)")), x=[0, 0, (link_length+plate_thickness)*(num_cells)])
 
 plate_ids = [get_body(mechanism, Symbol("plate_$(i)")).id for i in 1:num_cells+1]
-initialize_constraints!(mechanism, fixedids=plate_ids, regularization=1e-5, lineIter=10, newtonIter=300)
+res = initialize_constraints!(mechanism, 
+                                    fixedids=plate_ids,
+                                    regularization=0.0,
+                                    lineIter=10, 
+                                    newtonIter=10,
+                                    debug=true,
+                                    ε = 1e-6)
+# initialize_constraints!(mechanism, fixedids=plate_ids, regularization=1e-5, lineIter=10, newtonIter=50, debud=true)
 
 joints = JointConstraint{Float64}[deepcopy(mechanism.joints)...]
 
@@ -166,16 +173,16 @@ end
 
 mechanism = Mechanism(mechanism.origin, mechanism.bodies, joints; gravity, timestep)
         # joints = set_limits(mechanism, joint_limits)
-set_dampers!(mechanism.joints, 10.0)
-# if isdefined(Main, :vis)
-#     # If it exists, delete it
-#     delete!(vis)
-# else
-#     # If it doesn't exist, initialize it as a Visualizer
-#     vis = Visualizer()
-# end
-vis = Visualizer()
-vis = visualize(mechanism; vis=vis, visualize_floor=false, show_frame=true, show_joint=true, joint_radius=0.05)
+# set_dampers!(mechanism.joints, 10.0)
+if isdefined(Main, :vis)
+    # If it exists, delete it
+    delete!(vis)
+else
+    # If it doesn't exist, initialize it as a Visualizer
+    vis = Visualizer()
+end
+# vis = Visualizer()
+vis = visualize(mechanism; vis=vis, visualize_floor=false, show_frame=false, show_joint=false, joint_radius=0.05)
 
 function control!(mechanism, t)
     top = get_body(mechanism, Symbol("plate_2"))

@@ -150,7 +150,7 @@ function set_arrow!(vis, origin, direction;
 end
 
 function set_background!(vis::Visualizer; top_color=RGBA(1,1,1.0), bottom_color=RGBA(1,1,1.0))
-    setprop!(vis["/Background"], "top_color", top_color)
-    setprop!(vis["/Background"], "bottom_color", bottom_color)
-    # setprop!(vis["/Background"], "top_color", Dojo.colorant"transparent")
+    # setprop!(vis["/Background"], "top_color", top_color)
+    # setprop!(vis["/Background"], "bottom_color", bottom_color)
+    setprop!(vis["/Background"], "top_color", Dojo.colorant"transparent")
 end

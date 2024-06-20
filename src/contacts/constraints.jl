@@ -69,7 +69,7 @@ function off_diagonal_jacobians(mechanism, contact::ContactConstraint{T,N,Nc,Cs,
 end
 
 # linear system entries
-function set_matrix_vector_entries!(mechanism::Mechanism, matrix_entry::Entry, vector_entry::Entry, contact::ContactConstraint)
+function set_matrix_vector_entries!(mechanism::Mechanism, matrix_entry::Entry, vector_entry::Entry, contact::ContactConstraint; reg::Float64=Dojo.REG)
     matrix_entry.value = constraint_jacobian(contact)
     vector_entry.value = vcat(-complementarityμ(mechanism, contact), -constraint(mechanism, contact))
     return

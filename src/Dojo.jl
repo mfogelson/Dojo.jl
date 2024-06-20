@@ -13,6 +13,7 @@ using SparseArrays
 using StaticArrays: SUnitRange
 using Quaternions
 using Statistics
+using Rotations
 
 using Colors
 using Colors: RGBA, RGB
@@ -159,7 +160,8 @@ export
     get_body,
     get_node,
     set_external_force!,
-    add_external_force!
+    add_external_force!, 
+    Triad
 
 # Joints
 export
@@ -309,7 +311,9 @@ export
 export
     szeros,
     sones,
-    srand
+    srand, 
+    SVector, 
+    Scalar
 
 # Utilities
 export

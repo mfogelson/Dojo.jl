@@ -5,7 +5,7 @@ using Juniper
 using HiGHS
 using CSV
 using DataFrames
-
+using Printf
 # Function to update DataFrame based on key-value pairs
 function update_dataframe!(df::DataFrame, search_col::Symbol, update_col::Symbol, changes::Dict)
     for (key, value) in changes
@@ -35,15 +35,7 @@ function optimize_configuration(; VEHICAL_NAME, DIAMETER, MASS, INITIAL_HEIGHT, 
             # "silent" => true,
         ),
     )
-    set_silent(model)
-
-    # Constraint Constants 
-    # DIAMETER = 8.4 # Maximum Diameter of the rocket fairing
-    # MASS = 10.0 # Maximimum Mass of the payload
-    # INITIAL_HEIGHT = 27.8 # Maximum Height of the rocket fairing
-    # EXPANDED_HEIGHT = 1000.0 # Final expanded height
-    # EXPANSION_RATIO = EXPANDED_HEIGHT/INITIAL_HEIGHT
-    # STATES = 2
+    # set_silent(model)
 
     #######################################################################
     # Decision variables folding scissor 
@@ -53,7 +45,6 @@ function optimize_configuration(; VEHICAL_NAME, DIAMETER, MASS, INITIAL_HEIGHT, 
     @variable(model, thickness >= 0.001)
     @variable(model,  0.0 <= α[1:STATES] <= pi) # For the big members
     @variable(model, 0.0 <= β[1:STATES] <= pi) # for the small Members 
-    # @variable(model, 1 <= n <= 30, Int) # number of members 
     @variable(model, n >= 1, Int)
 
     # Decision variables for the kresling
@@ -62,7 +53,6 @@ function optimize_configuration(; VEHICAL_NAME, DIAMETER, MASS, INITIAL_HEIGHT, 
     @variable(model, h[1:STATES] >= 0.002)
 
     # Decision variables super structure
-    # @variable(model, 1 <= m <= 30, Int) # number of cells
     @variable(model, m >= 1, Int)
     #######################################################################
     # Useful Expressions folding scissor
@@ -73,8 +63,7 @@ function optimize_configuration(; VEHICAL_NAME, DIAMETER, MASS, INITIAL_HEIGHT, 
     d2 = @NLexpression(model, [i=1:STATES], sqrt((l3)^2+l2^2-2*(l3*(l2))*cos(α[i])))
     θ = @NLexpression(model, [i=1:STATES], (a[i]^2-2*b[i]^2)/(-2*b[i]^2)) # cos theta
     scissor_length = @NLexpression(model, [i=1:STATES],  c[i]*n) # Total length of the scissor
-    # contact_l3 = @NLexpression(model, (thickness/l3))
-    # contact_l1 = @NLexpression(model, (thickness/l1))
+
 
     # Constraints folding scissor
     @NLconstraint(model, [i=1:STATES], a[i] <= 2*b[i]) # Pop triangle equation
@@ -91,13 +80,6 @@ function optimize_configuration(; VEHICAL_NAME, DIAMETER, MASS, INITIAL_HEIGHT, 
     @NLconstraint(model,[i=1:STATES], c[i] >= 0.001)
 
     # Angle constraints
-    # @NLconstraint(model, thickness <= (l3+l2))
-    # @NLconstraint(model, thickness <= l1)
-    # @NLconstraint(model, (thickness/(l3+l2))*pi/2 - α[STATES] <= 0.0)
-    # @NLconstraint(model, α[1] - (pi-(thickness/(l3+l2))*pi/2) <= 0.0)
-
-    # @NLconstraint(model,  (thickness/l1)*pi/2 - β[STATES] <= 0.0)
-    # @NLconstraint(model,  β[1] - (pi-(thickness/l1)*pi/2) <= 0.0)
     @NLconstraint(model, [i=1:STATES], l3/(sqrt(l3^2+thickness^2)) - cos(α[i]/2) >= 0.0)
     @NLconstraint(model, [i=1:STATES], l3/(sqrt(l3^2+thickness^2)) - cos((pi-α[i])/2) >= 0.0)
 
@@ -109,25 +91,13 @@ function optimize_configuration(; VEHICAL_NAME, DIAMETER, MASS, INITIAL_HEIGHT, 
 
     #######################################################################
     # Useful Expressions for the kresling
-    # diameter = @NLexpression(model, 2*a[10] + 2*r) # Diameter of the structure
-    # height = @NLexpression(model, [i=1:10], c[i]*sin(γ[i])) # Height of the structure
     lBC = @NLexpression(model, [i=1:STATES], sqrt(h[i]^2 - 2*r^2*cos(phi[i])+2*r^2))
     lAC = @NLexpression(model, [i=1:STATES], sqrt(h[i]^2 - 2*r^2*cos(2*pi/6 + phi[i])+2*r^2))
 
     # Kresling Constraints 
     @NLconstraint(model, scissor_length[1] == r)
     @NLconstraint(model, scissor_length[1] == lBC[1])
-    # @variable(model, 0.0<=t<=1.0) # intersection var 
-    # @variable(model, 0.0<=s<= 1.0) # intersection var
-    # x constraint
-    # @NLconstraint(model, r + t*(r*cos(pi/3+phi[1])-r) == r*cos(pi/3) + t*(r*cos(2pi/3+phi[1])-r*cos(pi/3)))
-    # # y constraint
-    # @NLconstraint(model, t*(-r*sin(pi/3+phi[1])) == -r*sin(pi/3) + t*(-r*sin(2pi/3+phi[1])+r*sin(pi/3)))
-    # z constraint
-    # [r + t*(r*cos(pi/3+phi[1])-r), t*(-r*sin(pi/3+phi[1])), t*h[1]]-[r*cos(pi/3) + t*(r*cos(2pi/3+phi[1])-r*cos(pi/3)), -r*sin(pi/3) + t*(-r*sin(2pi/3+phi[1])+r*sin(pi/3)), t*h[1]]
-    # @NLconstraint(model, sqrt(sum(((r + t*(r*cos(pi/3+phi[1])-r))-r*cos(pi/3) - s*(r*cos(2pi/3+phi[1])-r*cos(pi/3)))^2+(t*(-r*sin(pi/3+phi[1]))-(-r*sin(pi/3) + s*(-r*sin(2pi/3+phi[1])+r*sin(pi/3))))^2) + (t*h[1]-s*h[1])) == 4*thickness)
-    # @NLconstraint(model, phi[1] == deg2rad(55))
-    # @NLconstraint(model, h[1] - 4*thickness >= 0.0)
+ 
     @NLconstraint(model, scissor_length[STATES] == lBC[STATES])
     @NLconstraint(model, scissor_length[STATES] == lAC[STATES])
 
@@ -143,55 +113,52 @@ function optimize_configuration(; VEHICAL_NAME, DIAMETER, MASS, INITIAL_HEIGHT, 
     @NLconstraint(model, h[1]*m <= INITIAL_HEIGHT)
     @NLconstraint(model, h[STATES]*m >= EXPANDED_HEIGHT)
     @NLconstraint(model, 120*m*n <= 750000)
-    # @NLconstraint(model, θ[1] == cos(pi*0.95))
     @NLconstraint(model, θ[STATES] == cos(pi/3))
-
-
 
     #######################################################################
     scale = 2.0*1000.0
-    @NLobjective(model, Min, ((l1+l2+l3)*scale)/((thickness*scale)^4))
+    @NLobjective(model, Min, ((l1+l2+l3)*scale)/((thickness*scale)))
     optimize!(model)
 
     #######################################################################
     # Define changes: HERDS_global_params.csv
-    df = CSV.File("/Users/mitchfogelson/Downloads/HERDS_global_params.csv", header=["name", "units", "value"]) |> DataFrame
+    # df = CSV.File("/Users/mitchfogelson/Downloads/HERDS_global_params.csv", header=["name", "units", "value"]) |> DataFrame
 
-    changes = Dict("height" => value(h[1])*1000.0, "phi" => rad2deg(value(phi[1])), "radius" => value(r)*1000.0, "thickness" => value(thickness)*1000.0, "lAB" => value(r)*1000.0, "lBC" => value(lBC[1])*1000.0, "lAC" => value(lAC[1])*1000.0, "n" => value(m))
+    # changes = Dict("height" => value(h[1])*1000.0, "phi" => rad2deg(value(phi[1])), "radius" => value(r)*1000.0, "thickness" => value(thickness)*1000.0, "lAB" => value(r)*1000.0, "lBC" => value(lBC[1])*1000.0, "lAC" => value(lAC[1])*1000.0, "n" => value(m))
 
-    # Apply the changes
-    update_dataframe!(df, :name, :value, changes)
+    # # Apply the changes
+    # update_dataframe!(df, :name, :value, changes)
 
-    # Save the modified DataFrame to a new CSV file
-    CSV.write("/Users/mitchfogelson/Downloads/$(VEHICAL_NAME)_HERDS_initialState_mass.csv", df, writeheader=false)
+    # # Save the modified DataFrame to a new CSV file
+    # CSV.write("/Users/mitchfogelson/Downloads/$(VEHICAL_NAME)_HERDS_initialState_mass.csv", df, writeheader=false)
 
-    changes = Dict("height" => value(h[STATES])*1000.0, "phi" => rad2deg(value(phi[STATES])), "radius" => value(r)*1000.0, "thickness" => value(thickness)*1000.0, "lAB" => value(r)*1000.0, "lBC" => value(lBC[STATES])*1000.0, "lAC" => value(lAC[STATES])*1000.0, "n" => value(m))
+    # changes = Dict("height" => value(h[STATES])*1000.0, "phi" => rad2deg(value(phi[STATES])), "radius" => value(r)*1000.0, "thickness" => value(thickness)*1000.0, "lAB" => value(r)*1000.0, "lBC" => value(lBC[STATES])*1000.0, "lAC" => value(lAC[STATES])*1000.0, "n" => value(m))
 
-    # Apply the changes
-    update_dataframe!(df, :name, :value, changes)
+    # # Apply the changes
+    # update_dataframe!(df, :name, :value, changes)
 
-    # Save the modified DataFrame to a new CSV file
-    CSV.write("/Users/mitchfogelson/Downloads/$(VEHICAL_NAME)_HERDS_finalState_mass.csv", df, writeheader=false)
+    # # Save the modified DataFrame to a new CSV file
+    # CSV.write("/Users/mitchfogelson/Downloads/$(VEHICAL_NAME)_HERDS_finalState_mass.csv", df, writeheader=false)
 
-    # Define changes: PET_global_params.csv
-    println("$(VEHICAL_NAME): $(value(n))")
-    df = CSV.File("/Users/mitchfogelson/Downloads/PET_global_params.csv", header=["name", "units", "value"]) |> DataFrame
+    # # Define changes: PET_global_params.csv
+    # println("$(VEHICAL_NAME): $(value(n))")
+    # df = CSV.File("/Users/mitchfogelson/Downloads/PET_global_params.csv", header=["name", "units", "value"]) |> DataFrame
 
-    changes = Dict("l1" => value(l1), "l2" => value(l2), "l3" => value(l3), "l2l3" => (value(l3)+value(l2)), "thickness" => value(thickness)*1000.0, "alpha" => (value(α[1])), "beta" => (value(β[1])), "n" => value(n))
+    # changes = Dict("l1" => value(l1), "l2" => value(l2), "l3" => value(l3), "l2l3" => (value(l3)+value(l2)), "thickness" => value(thickness)*1000.0, "alpha" => (value(α[1])), "beta" => (value(β[1])), "n" => value(n))
 
-    # Apply the changes
-    update_dataframe!(df, :name, :value, changes)
+    # # Apply the changes
+    # update_dataframe!(df, :name, :value, changes)
 
-    # Save the modified DataFrame to a new CSV file
-    CSV.write("/Users/mitchfogelson/Downloads/$(VEHICAL_NAME)_PET_initialState_mass.csv", df, writeheader=false)
+    # # Save the modified DataFrame to a new CSV file
+    # CSV.write("/Users/mitchfogelson/Downloads/$(VEHICAL_NAME)_PET_initialState_mass.csv", df, writeheader=false)
 
-    changes = Dict("l1" => value(l1), "l2" => value(l2), "l3" => value(l3), "l2l3" => (value(l3)+value(l2)), "thickness" => value(thickness)*1000.0, "alpha" => (value(α[STATES])), "beta" => (value(β[STATES])), "n" => value(n))
+    # changes = Dict("l1" => value(l1), "l2" => value(l2), "l3" => value(l3), "l2l3" => (value(l3)+value(l2)), "thickness" => value(thickness)*1000.0, "alpha" => (value(α[STATES])), "beta" => (value(β[STATES])), "n" => value(n))
 
-    # Apply the changes
-    update_dataframe!(df, :name, :value, changes)
+    # # Apply the changes
+    # update_dataframe!(df, :name, :value, changes)
 
-    # Save the modified DataFrame to a new CSV file
-    CSV.write("/Users/mitchfogelson/Downloads/$(VEHICAL_NAME)_PET_finalState_mass.csv", df, writeheader=false)
+    # # Save the modified DataFrame to a new CSV file
+    # CSV.write("/Users/mitchfogelson/Downloads/$(VEHICAL_NAME)_PET_finalState_mass.csv", df, writeheader=false)
 
     # TODO: Fix this Save model to file 
     # write_to_file(model, "model_$VEHICAL_NAME.mof.json")
@@ -199,30 +166,19 @@ function optimize_configuration(; VEHICAL_NAME, DIAMETER, MASS, INITIAL_HEIGHT, 
     keys = [:l1, :l2, :l3, :thickness, :α, :β, :n, :r, :phi, :h, :m]
     for key in keys
         println(round(value.(model.obj_dict[key])[1], digits=3))
-        # if length(model.obj_dict[key]) == 1
-            
-        # else
-        #     println(value.(model.obj_dict[key]))
-        # end
     end    
-    # println(round(2*value(r) + 2*value(a[1]), digits=3))
-    # println(round(value(h[1])*value(m), digits=3))
-    # println(round(value(h[STATES])*value(m), digits=3))
-    # println(round(value(mass), digits=3))
+   
     println(round(2*value(r) + 4*value(thickness), digits=3))
     formatted_string = @sprintf("%.2e", value(h[1])*value(m))
     println(formatted_string)
-    # println(round(value(h[1])*value(m), digits=3))
+    
     formatted_string = @sprintf("%.2e", value(h[STATES])*value(m))
     println(formatted_string)
 
-    # println(round(value(h[STATES])*value(m), digits=3))
     formatted_string = @sprintf("%.2e", value(mass))
     println(formatted_string)
 
-    # println(round(value(mass), digits=3))
     println("Objective value: ", @sprintf("%.2e", objective_value(model)))
-
 
 end
 

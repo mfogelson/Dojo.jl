@@ -47,7 +47,7 @@ function Mechanism(origin::Origin{T}, bodies::Vector{Body{T}}, joints::Vector{<:
     timestep=0.01, input_scaling=timestep, gravity=[0.0; 0.0;-9.81]) where T
 
     # reset ids
-    resetGlobalID()
+    # resetGlobalID()
 
     # check body inertia parameters
     check_body.(bodies)

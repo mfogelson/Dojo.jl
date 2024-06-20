@@ -156,6 +156,19 @@ function set_data!(body::Body, data::AbstractVector, timestep)
 	return nothing
 end
 
+function set_mass!(body::Body, data::AbstractVector, timestep)
+	# [m,flat(J),x2,v15,q2,ω15]
+	m = data[1]
+	J = Dojo.lift_inertia(data[Dojo.SUnitRange(2,7)])
+	body.mass = m
+	body.inertia = J
+	body.state.x1 = Dojo.next_position(body.state.x2, -body.state.v15, timestep)
+	body.state.q1 = Dojo.next_orientation(body.state.q2, -body.state.ω15, timestep)
+	body.state.JF2 = Dojo.SVector{3}(0,0,0.)
+	body.state.Jτ2 = Dojo.SVector{3}(0,0,0.)
+	return nothing
+end
+
 # Contact
 function set_data!(model::NonlinearContact, data::AbstractVector)
 	model.friction_coefficient = data[1]

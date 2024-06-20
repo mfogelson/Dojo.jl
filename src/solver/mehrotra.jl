@@ -33,8 +33,29 @@ function mehrotra!(mechanism::Mechanism{T}; opts=SolverOptions{T}()) where T
         # affine search direction
 		μ = 0.0
 		pull_residual!(mechanism)               # store the residual inside mechanism.residual_entries
-        ldu_factorization!(mechanism.system)    # factorize system, modifies the matrix in place
-        ldu_backsubstitution!(mechanism.system) # solve system, modifies the vector in place
+        #!# Jan LDU Version 
+        # ldu_factorization!(mechanism.system)    # factorize system, modifies the matrix in place
+        # ldu_backsubstitution!(mechanism.system) # solve system, modifies the vector in place
+
+        A = full_matrix(mechanism.system)
+        b = full_vector(mechanism.system)
+        #!# Full Matrix Version
+        # out = A \ b
+
+        #!# SVD Version 
+        F = svd(A, full=true, alg=LinearAlgebra.QRIteration())
+        rank = sum(F.S .> 1e-6)
+        V1 = @view F.V[:,1:rank]
+        S1 = @view F.S[1:rank]
+        U1 = @view F.U[:,1:rank]
+
+        out = V1*Diagonal(1.0 ./ S1)*U1'*b
+
+        start = 0
+        for i in eachindex(mechanism.system.vector_entries)
+            mechanism.system.vector_entries[i].value = out[start + 1: start+size(mechanism.system.vector_entries[i].value, 1)]
+            start += size(mechanism.system.vector_entries[i].value, 1)
+        end
 
 		αaff = cone_line_search!(mechanism; τort=0.95, τsoc=0.95) # uses system.vector_entries which holds the search drection
 		ν, νaff = centering!(mechanism, αaff)
@@ -46,7 +67,20 @@ function mehrotra!(mechanism::Mechanism{T}; opts=SolverOptions{T}()) where T
 		correction!(mechanism) # update the residual in mechanism.residual_entries
 
 		push_residual!(mechanism)               # cache residual + correction
-        ldu_backsubstitution!(mechanism.system) # solve system
+        b = full_vector(mechanism.system)
+        #!# Full Matrix Version
+        # out = A \ b
+
+        #!# SVD Version 
+        out = V1*Diagonal(1.0 ./ S1)*U1'*b
+
+        start = 0
+        for i in eachindex(mechanism.system.vector_entries)
+            mechanism.system.vector_entries[i].value = out[start+1: start + size(mechanism.system.vector_entries[i].value, 1)]
+            start += size(mechanism.system.vector_entries[i].value, 1) 
+        end
+        # mechanism.system.vector_entries .= A \ b
+        # ldu_backsubstitution!(mechanism.system) # solve system
 
 		τ = max(0.95, 1 - max(rvio, bvio)^2) # τ = 0.95
 		α = cone_line_search!(mechanism; τort=τ, τsoc=min(τ, 0.95)) # uses system.vector_entries which holds the corrected search drection

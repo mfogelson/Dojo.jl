@@ -212,14 +212,14 @@ end
 
 # TODO: fix axis
 function joint_selector(joint_type, pbody, cbody, T;
-        axis = SA{T}[1;0;0], parent_vertex = szeros(T,3), child_vertex = szeros(T,3), orientation_offset = one(Quaternion{T}), name = Symbol("joint_" * randstring(4)), damper = zero(T))
+        axis = SA{T}[1;0;0], parent_vertex = szeros(T,3), child_vertex = szeros(T,3), orientation_offset = one(Quaternion{T}), name = Symbol("joint_" * randstring(4)), damper = zero(T), rot_joint_limits = [szeros(T,0), szeros(T,0)])
 
     # TODO @warn "this is not great"
     # axis = vector_rotate(axis, orientation_offset) # inv(orientation_offset) * axis
 
     # TODO limits for revolute joint?
     if joint_type == "revolute" || joint_type == "continuous"
-        joint = JointConstraint(Revolute(pbody, cbody, axis; parent_vertex, child_vertex, orientation_offset, damper); name)
+        joint = JointConstraint(Revolute(pbody, cbody, axis; parent_vertex, child_vertex, orientation_offset, damper, rot_joint_limits); name)
     elseif joint_type == "prismatic"
         joint = JointConstraint(Prismatic(pbody, cbody, axis; parent_vertex, child_vertex, orientation_offset, damper); name)
     elseif joint_type == "planar"
@@ -253,11 +253,44 @@ function parse_joint(xjoint, plink, clink, T, parse_dampers)
     joint_type = attribute(xjoint, "type")
     x, q = parse_pose(find_element(xjoint, "origin"), T)
     axis = parse_vector(find_element(xjoint, "axis"), "xyz", T; default = "1 0 0")
+    lower = SVector{1}(parse_scalar(find_element(xjoint, "limits"), "lower", T; default = "0"))
+    upper = SVector{1}(parse_scalar(find_element(xjoint, "limits"), "upper", T; default = "0"))
+    # rot_joint_limits = [lower, upper] #: rot_joint_limits = [szeros(T, 0), szeros(T, 0)]
+    rot_joint_limits = parse_limits(find_element(xjoint, "limit"), T; default_lower = szeros(T, 0), default_upper = szeros(T, 0))
+
     parent_vertex = x
     name = Symbol(attribute(xjoint, "name"))
     parse_dampers ? damper = parse_scalar(find_element(xjoint, "dynamics"), "damping", T; default = "0") : damper = 0
 
-    return joint_selector(joint_type, plink, clink, T; axis, parent_vertex, orientation_offset = q, name, damper)
+    return joint_selector(joint_type, plink, clink, T; axis, parent_vertex, orientation_offset = q, name, damper, rot_joint_limits)
+end
+
+function parse_limits(xlimits, T; default_lower =nothing, default_upper = nothing)
+    scalarstr_lower = unsafeattribute(xlimits, "lower")
+    if scalarstr_lower === nothing
+        if default_lower === nothing
+            @error "no parsable vector found"
+        else
+            scalar_lower = default_lower
+        end
+    else
+        scalar_lower = SVector{1}(parse(T,scalarstr_lower))
+    end
+
+    scalarstr_upper = unsafeattribute(xlimits, "upper")
+    if scalarstr_upper === nothing
+        if default_upper === nothing
+            @error "no parsable vector found"
+        else
+            scalar_upper = default_upper
+        end
+
+    else
+        scalar_upper = SVector{1}(parse(T,scalarstr_upper))
+    end
+
+    return [scalar_lower, scalar_upper]
+
 end
 
 function parse_loop_joint(xjoint, pbody, cbody, T, parse_dampers)

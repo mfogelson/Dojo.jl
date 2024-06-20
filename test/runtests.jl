@@ -10,8 +10,9 @@ using ForwardDiff
 using Rotations
 
 using Dojo
+Pkg.activate("./DojoEnvironments")
 using DojoEnvironments
-
+Pkg.activate(".")
 global REG = 1.0e-10
 
 @testset "Integrator"                    verbose=true begin include("integrator.jl") end

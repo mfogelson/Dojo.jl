@@ -1,6 +1,7 @@
+using Dojo
+
 using CSV
 using DataFrames
-using Dojo
 using LinearAlgebra
 using JLD2
 # Get values from DataFrame
@@ -38,7 +39,7 @@ end
 get_param_value(df, key) = df[findall(isequal(key), df[!, :name]), :value]
 
 # Load CSV file 
-pathname = "/mnt/nvme/home/mitch/.julia/dev/Dojo/HERDS_design_optimization_final"
+pathname = "/Users/mitchfogelson/.julia/dev/Dojo.jl/HERDS_design_optimization_final"
 filename = joinpath(pathname, "falcon_PET_finalState_mass.csv")
 df = CSV.File(filename, header=["name", "units", "value"]) |> DataFrame
 
@@ -201,14 +202,14 @@ function get_scissor(;num_cells, number_of_units, unit_thickness, unit_length, u
             end
 
             # If more than 1 iteration, connect the end bodies from the previous iteration to the current iteration's bodies
-            if j > 1
+            if j > 1 && i == 1
                 new_joint = create_cell_joint(all_bodies, bodies, i, j, 0, 1, name_ext, "cell", parent_vertex, child_vertex, noise=noise)
                 push!(joints, new_joint)
                 new_joint = create_cell_joint(all_bodies, bodies, i, j, -1, 2,name_ext, "cell", parent_vertex, child_vertex, noise=noise)
                 push!(joints, new_joint)
             end
 
-            if j == num_cells && name_ext == "long"
+            if num_cells==1 && name_ext == "long"
                 for index in 1:2
                     body_name = Symbol("$(name_ext):c$num_cells:l$(index):terminal")
                     new_body = Cylinder(unit_thickness, L2, unit_mass, name=body_name, color=color)
@@ -233,11 +234,11 @@ function make_connection_joints(num_cells, left_bodies, right_bodies, long_bodie
     for i in 1:num_cells
 
         # Connect short to long (top)
-        if i ==1
-            push!(connection_joints, create_spherical_joint_constraint(left_bodies[i][1], long_bodies[i][1], [0, 0, SHORT_LENGTH/2], [0, 0, LONG_LENGTH/2], "left_to_long", "", i, "top", noise=noise))
+        # if i ==1
+        push!(connection_joints, create_spherical_joint_constraint(left_bodies[i][1], long_bodies[i][1], [0, 0, SHORT_LENGTH/2], [0, 0, LONG_LENGTH/2], "left_to_long", "", i, "top", noise=noise))
 
-            push!(connection_joints, create_spherical_joint_constraint(right_bodies[i][2], long_bodies[i][2], [0, 0, SHORT_LENGTH/2], [0, 0, LONG_LENGTH/2], "right_to_long", "", i, "top", noise=noise))
-        end
+        push!(connection_joints, create_spherical_joint_constraint(right_bodies[i][2], long_bodies[i][2], [0, 0, SHORT_LENGTH/2], [0, 0, LONG_LENGTH/2], "right_to_long", "", i, "top", noise=noise))
+        # end
 
         # if i < num_cells
         #     # Connect short to long (bottom)
@@ -246,22 +247,26 @@ function make_connection_joints(num_cells, left_bodies, right_bodies, long_bodie
         # end
 
         # Connect left to right
-        if i ==1
-            push!(connection_joints, create_spherical_joint_constraint(left_bodies[i][2], right_bodies[i][1], [0, 0, SHORT_LENGTH/2], [0, 0, SHORT_LENGTH/2], "left_to_right", "", i, "top", noise=noise))
-            push!(connection_joints, create_spherical_joint_constraint(left_bodies[i][3], right_bodies[i][4], [0, 0, -SHORT_LENGTH/2], [0, 0, -SHORT_LENGTH/2], "left_to_right", "", i, "bottom", noise=noise))
-        end
+        # if i ==1
+        push!(connection_joints, create_spherical_joint_constraint(left_bodies[i][2], right_bodies[i][1], [0, 0, SHORT_LENGTH/2], [0, 0, SHORT_LENGTH/2], "left_to_right", "", i, "top", noise=noise))
+        push!(connection_joints, create_spherical_joint_constraint(left_bodies[i][3], right_bodies[i][4], [0, 0, -SHORT_LENGTH/2], [0, 0, -SHORT_LENGTH/2], "left_to_right", "", i, "bottom", noise=noise))
+        # end
     end
 
     # attach to terminal members
-    push!(connection_joints, create_spherical_joint_constraint(left_bodies[num_cells][4], long_bodies[num_cells][3], [0, 0, -SHORT_LENGTH/2], [0, 0, L2/2], "left_to_term", "", num_cells, "bottom", noise=noise))
-    push!(connection_joints, create_spherical_joint_constraint(right_bodies[num_cells][3], long_bodies[num_cells][4], [0, 0, -SHORT_LENGTH/2], [0, 0, L2/2], "right_to_term", "", num_cells, "bottom", noise=noise))
+    if num_cells==1
+        push!(connection_joints, create_spherical_joint_constraint(left_bodies[num_cells][4], long_bodies[num_cells][3], [0, 0, -SHORT_LENGTH/2], [0, 0, L2/2], "left_to_term", "", num_cells, "bottom", noise=noise))
+        push!(connection_joints, create_spherical_joint_constraint(right_bodies[num_cells][3], long_bodies[num_cells][4], [0, 0, -SHORT_LENGTH/2], [0, 0, L2/2], "right_to_term", "", num_cells, "bottom", noise=noise))
+    end
 
 
     # push!(connection_joints, JointConstraint(Fixed(long_bodies[1][1], long_bodies[1][4]; parent_vertex=PARENT_VERTEX_LONG, child_vertex=[0, 0, -L2/2]), name = :terminal_fixed_joint1))
     # push!(connection_joints, JointConstraint(Fixed(long_bodies[1][2], long_bodies[1][3]; parent_vertex=PARENT_VERTEX_LONG, child_vertex=[0, 0, -L2/2]), name = :terminal_fixed_joint2))
 
-    push!(connection_joints, create_revolute_joint_constraint(long_bodies[num_cells][1], long_bodies[num_cells][4], ROTATION_AXIS, PARENT_VERTEX_LONG, [0, 0, -L2/2], "terminal", 1, 1, "bottom", noise=noise))
-    push!(connection_joints, create_revolute_joint_constraint(long_bodies[num_cells][2], long_bodies[num_cells][3], ROTATION_AXIS, PARENT_VERTEX_LONG, [0, 0, -L2/2], "terminal", 1, 1, "bottom", noise=noise))
+    if num_cells == 1
+        push!(connection_joints, create_revolute_joint_constraint(long_bodies[num_cells][1], long_bodies[num_cells][4], ROTATION_AXIS, PARENT_VERTEX_LONG, [0, 0, -L2/2], "terminal", 1, 1, "bottom", noise=noise))
+        push!(connection_joints, create_revolute_joint_constraint(long_bodies[num_cells][2], long_bodies[num_cells][3], ROTATION_AXIS, PARENT_VERTEX_LONG, [0, 0, -L2/2], "terminal", 1, 1, "bottom", noise=noise))
+    end
 
 
     return connection_joints
@@ -398,23 +403,23 @@ function initialize_PET!(mechanism, α, β, θ, c, NUM_CELL)
         end
     end
 
-    for j in 1:2
-        # r = get_body(mechanism, Symbol("left:c$NUM_CELL:l$j")).state.r
-        name = Symbol("long:c$NUM_CELL:l$j:terminal")
-        # println(name)
-        # println(mechanism)
+    # for j in 1:2
+    #     # r = get_body(mechanism, Symbol("left:c$NUM_CELL:l$j")).state.r
+    #     name = Symbol("long:c$NUM_CELL:l$j:terminal")
+    #     # println(name)
+    #     # println(mechanism)
 
-        vect = [0, 0, -L3+L2/2]
-        q = ROT_X_HALF * (iseven(j+1) ? ROT_Y_LONG : ROT_Y_MINUS_LONG) 
+    #     vect = [0, 0, -L3+L2/2]
+    #     q = ROT_X_HALF * (iseven(j+1) ? ROT_Y_LONG : ROT_Y_MINUS_LONG) 
 
-        x = Dojo.vector_rotate(vect, q) 
-        x -= [0, (c)*(NUM_CELL-1), 0.0]
+    #     x = Dojo.vector_rotate(vect, q) 
+    #     x -= [0, (c)*(NUM_CELL-1), 0.0]
 
-        q = q * (iseven(j) ? ROT_Y_LONG : ROT_Y_MINUS_LONG) * (iseven(j) ? ROT_Y_LONG : ROT_Y_MINUS_LONG)
-        # println(x, q)
+    #     q = q * (iseven(j) ? ROT_Y_LONG : ROT_Y_MINUS_LONG) * (iseven(j) ? ROT_Y_LONG : ROT_Y_MINUS_LONG)
+    #     # println(x, q)
 
-        set_configurations!(mechanism, name, x, q)
-    end
+    #     set_configurations!(mechanism, name, x, q)
+    # end
 end
 
 function run_tolerance_analysis(num_runs, num_poses, num_cells, noise)
@@ -441,7 +446,7 @@ function run_tolerance_analysis(num_runs, num_poses, num_cells, noise)
                                         fixedids=[get_body(mechanism, Symbol("long:c1:l1")).id, get_body(mechanism, Symbol("long:c1:l2")).id],
                                         regularization=1e-6, #1e-10^(10*i),
                                         lineIter=LINE_ITER, 
-                                        newtonIter=NEWTON_ITER,
+                                        newtonIter=30,
                                         debug=DEBUG,
                                         ε = EPSILON)
 
@@ -452,9 +457,104 @@ function run_tolerance_analysis(num_runs, num_poses, num_cells, noise)
     end
     # Save errors
     save(uniquify("PET_jamming_test_noise_$(noise)_run_$(num_runs)_pose_$(num_poses)_cell_$(num_cells).jld2"), "errors", errors)
+    return errors
+end
+num_cells = 1
+num_runs = 50 
+noise = 1e-3
+num_poses = 10
+errors = []
+for noise in [2e-4, 5e-4, 2e-3, 5e-3, 1e-2, 2e-2]
+    run_tolerance_analysis(num_runs, num_poses, 1, noise)
 end
 
-run_tolerance_analysis(10, 10, 1, 0.0)
+true_data_color = :blue
+mean_color = :red
+using Plots
+using PGFPlotsX  # Import the PGFPlotsX package
+
+Plots.PGFPlotsXBackend()  # Set the PGFPlotsX backend
+noises = [1e-6, 1e-5, 1e-4, 2e-4, 5e-4, 1e-3] #2e-3, 5e-3] #, 1e-2, 2e-2]
+errors = [load("PET_jamming_test_noise_$(noise)_run_$(num_runs)_pose_$(num_poses)_cell_$(num_cells).jld2")["errors"] for noise in noises]
+p = plot(xlabel="θ [rad]", ylabel="Potential [1/m²]", 
+xtickfont = font(12),
+ytickfont = font(12),guidefontsize = 14,
+legendfontsize = 12,
+titlefontsize = 16)
+for (error, noise) in zip(errors, noises)
+    # # Start the plot with the axis labels
+    # plot(θs, errors[1,:], alpha=0.3, color=true_data_color, label=nothing, 
+    #     xlabel="θ [rad]", ylabel="Potential Energy [N/m²]")
+
+    # # Continue plotting the true data
+    # for i in 2:9
+    #     plot!(θs, errors[i,:], alpha=0.3, color=true_data_color, label=nothing)
+    # end
+    # plot!(θs, errors[10,:], alpha=0.3, color=true_data_color, label=nothing)
+
+    # Compute the mean and standard deviation
+    mean_values = Dojo.mean(error, dims=1)'
+    std_values = Dojo.std(error, dims=1)'
+
+    # Plot the shaded region between the standard deviation
+    plot!(p, θs, mean_values, ribbon=std_values, linewidth=3, fillalpha=0.2, label=" Noise=$noise", legend=:topleft)
+end
+ymin, ymax = ylims()  # Get current y-axis limits
+annotate!(p, [(θs[end-1], ymin - 0.1 * (ymax - ymin), text("Deployed", :right, 15)),
+          (θs[4], ymin - 0.1 * (ymax - ymin), text("Collapsed", :left, 15))])
+savefig(p, "my_plot.tex")
+plot!()
+
+
+
+# Setting the options for the axis
+axis_opts = @pgf {
+    xmajorgrids,
+    ymajorgrids,
+    xlabel = "θ [rad]",
+    ylabel = "Potential [1/m²]",
+    legend_pos = "north west",
+    legend_cell_align="left"
+}
+
+# Create the main axis structure
+axis_content = []
+
+for (error, noise) in zip(errors, noises)
+    # Compute the mean and standard deviation
+    mean_values = Dojo.mean(error)
+    std_values = Dojo.std(error)
+
+    # Create the plots
+    plot_opts = @pgf {
+        no_marks,
+        "very thick",
+        color = "black",  # Choose your desired color
+        fill_opacity = 0.2,
+        legend_entry = "Noise = $noise"
+    }
+    push!(axis_content, 
+        PlotInc(plot_opts, 
+            Table([θs, mean_values .+ std_values, mean_values .- std_values]))
+    )
+end
+
+# Combining everything into a single axis
+scaling_plot = @pgf PGFPlotsX.Axis(axis_opts, axis_content...)
+
+
+# plot!()
+# Annotate the "1 cell" and "10 cell" lines with arrows and text
+middle_idx = length(θs) ÷ 2  # Choose a midpoint for the annotation
+annotate!([(θs[middle_idx], errors[1, middle_idx], text("1 cell", :left, 10)),
+          (θs[middle_idx], errors[10, middle_idx], text("10 cells", :left, 10))])
+
+# Annotate "Deployed" on the left and "Collapsed" on the right of the x-axis
+ymin, ymax = ylims()  # Get current y-axis limits
+annotate!([(θs[end-1], ymin - 0.1 * (ymax - ymin), text("Deployed", :right, 10)),
+          (θs[4], ymin - 0.1 * (ymax - ymin), text("Collapsed", :left, 10))])
+plot!()
+
 
 errors = load("/mnt/nvme/home/mitch/.julia/dev/Dojo/PET_jamming_test_noise_0.0_run_10_pose_10_cell_1.jld2")["errors"]
 
@@ -509,8 +609,19 @@ vis = visualize(mechanism; vis=vis, visualize_floor=false, show_frame=true, show
 # Initialize mechanism
 ind = 1
 NUM_CELL = 3
-noise = 0.0 #2e-5
+noise = 2e-4
 mechanism = get_PET(αs[ind], NUM_CELL, noise)
+# Getting the degrees of freedom for each joint
+joint_dof = [Base.unwrap_unionall(typeof(joint)).parameters[2] for joint in mechanism.joints]
+
+# Creating index ranges for the joints
+joint_idx = Dojo.index_ranges(joint_dof)
+
+# Calculating total number of constraints and bodies
+num_constraints = sum(joint_dof)
+num_bodies = 7*length(mechanism.bodies)
+
+
 Dojo.loss(mechanism)
 # viol = [Dojo.joint_residual_violation(mechanism, joint) for joint in mechanism.joints]
 # loss = viol'*I*viol
@@ -518,6 +629,181 @@ initialize_PET!(mechanism, αs[ind], β_check[ind], θs[ind], cs[ind], NUM_CELL)
 # viol = [Dojo.joint_residual_violation(mechanism, joint) for joint in mechanism.joints]
 # loss = viol'*I*viol
 Dojo.loss(mechanism)
+
+
+vis = Visualizer()
+visualize(mechanism; vis=vis, visualize_floor=false, show_frame=true, show_joint=true, joint_radius=0.005)
+
+# get configuration 
+state = get_maximal_state(mechanism)
+input = vcat([[state[1+(i-1)*13:3+(i-1)*13]; state[7+(i-1)*13:10+(i-1)*13]] for i in 1:length(mechanism.bodies)]...)
+# qs = [ for i in 1:length(mechanism.bodies)]
+
+# set configuration
+function set_configurations!(mechanism, input)
+    for (i, body) in enumerate(mechanism.bodies)
+        x = input[1+(i-1)*7:3+(i-1)*7]
+        q = input[4+(i-1)*7:7+(i-1)*7]
+        set_maximal_configurations!(body, x=x, q=Quaternion(q...))
+    end
+end
+for (i, body) in enumerate(mechanism.bodies)
+    x = input[1+(i-1)*7:3+(i-1)*7]
+    q = input[4+(i-1)*7:7+(i-1)*7]
+    set_maximal_configurations!(body, x=x, q=Quaternion(q[1], q[2], q[3], q[4]))
+end
+
+function cost(mechanism, input)
+    for (i, body) in enumerate(mechanism.bodies)
+        x = input[1+(i-1)*7:3+(i-1)*7]
+        q = input[4+(i-1)*7:7+(i-1)*7]
+        set_maximal_configurations!(body, x=x, q=Quaternion(q[1], q[2], q[3], q[4]))
+    end
+
+    res = Dojo.Vector(vcat([Dojo.constraint(mechanism, joint) for joint in mechanism.joints]...))
+    return 0.5*res'*res
+end
+
+cost(mechanism, input)
+
+res = initialize_constraints!(mechanism, 
+                            fixedids=[],
+                            regularization=0.0,
+                            lineIter=LINE_ITER, 
+                            newtonIter=30,
+                            debug=true,
+                            ε = EPSILON)
+
+[]
+visualize(mechanism; vis=vis, visualize_floor=false, show_frame=true, show_joint=true, joint_radius=0.005)
+
+
+using FiniteDiff
+hes = FiniteDiff.finite_difference_hessian(x -> cost(mechanism, x), input)
+
+function get_hes(mechanism)
+    # Getting the degrees of freedom for each joint
+    joint_dof = [Base.unwrap_unionall(typeof(joint)).parameters[2] for joint in mechanism.joints]
+
+    # Creating index ranges for the joints
+    joint_idx = Dojo.index_ranges(joint_dof)
+
+    # Calculating total number of constraints and bodies
+    num_constraints = sum(joint_dof)
+    num_bodies = 7*length(mechanism.bodies)
+    # Initializing constraint Jacobian
+    con_jac = Dojo.spzeros(num_constraints, num_bodies)
+
+    # Calculating the constraint results for all joints
+    res = Vector(vcat([Dojo.constraint(mechanism, joint) for joint in mechanism.joints]...))
+    body_idx = Dojo.index_ranges([7 for _ in mechanism.bodies])
+    # Filling the constraint Jacobian
+    for (i,(joint, j_idx)) in enumerate(zip(mechanism.joints, joint_idx))
+        for (j,(body, b_idx)) in enumerate(zip(mechanism.bodies, body_idx))
+            if body.id == joint.parent_id
+                con_jac[j_idx, b_idx] = Dojo.constraint_jacobian_configuration(mechanism, joint, body)
+            elseif body.id == joint.child_id
+                con_jac[j_idx, b_idx] = Dojo.constraint_jacobian_configuration(mechanism, joint, body)
+            end
+        end
+    end
+
+    hes_dojo = con_jac'*con_jac
+end
+
+using FiniteDiff
+function newton_method(mechanism, input; tol=1e-6, max_iter=10, line_iter=10)
+    # Initialize
+    prev_input = 1.0*input
+    iter = 0
+    norm0 = cost(mechanism, input)
+    norm1 = norm0
+
+    while iter < max_iter
+        println(iter)
+        # Compute gradient and Hessian
+        grad = FiniteDiff.finite_difference_gradient(x -> cost(mechanism, x), prev_input)
+        hes = FiniteDiff.finite_difference_hessian(x -> cost(mechanism, x), prev_input) + 1e-1*I
+
+        # Newton update
+        # Q, R = qr(hes)
+        # dx = -R \ (Q' * grad)
+        dx = -hes \ grad
+
+        for j = Base.OneTo(line_iter)
+
+            for (i, body) in enumerate(mechanism.bodies)
+                # Update x
+                input[1+(i-1)*7:3+(i-1)*7] = prev_input[1+(i-1)*7:3+(i-1)*7] + dx[1+(i-1)*7:3+(i-1)*7]*(0.5)^(j-1)
+
+                # Update orientation using a quaternion
+                q = Quaternion(prev_input[4+(i-1)*7:7+(i-1)*7]...)
+                q̇ = dx[4+(i-1)*7:7+(i-1)*7]
+                Δstemp = Dojo.VLᵀmat(q) * q̇
+                # Limit quaternion step to feasible length
+                if norm(Δstemp) > 1
+                    Δstemp = Δstemp/norm(Δstemp)
+                end
+                w = sqrt(1-min(1, norm((Δstemp*(0.5)^(j-1))))^2)
+                input[4+(i-1)*7:7+(i-1)*7] = Dojo.vector(Quaternion(prev_input[4+(i-1)*7:7+(i-1)*7]...) * Quaternion(w, Δstemp*(0.5)^(j-1)...))
+                # set_maximal_configurations!(body, x=x, q=Quaternion(q[1], q[2], q[3], q[4]))
+            end
+
+            # Compute the maximum constraint violation
+            norm1 = cost(mechanism, input) #maximum(violations(mechanism))
+
+            # If violation decreased, exit line search
+            if norm1 < norm0 
+                # if debug
+                    println("exit line search, violation: "*string(norm1))
+                # end
+                break
+            else
+                println("new norm: $norm1 vs. old norm: $norm0") 
+            end
+
+        end
+
+       
+        # Check convergence
+        if cost(mechanism, input) < tol
+            println("Converged in $iter iterations!")
+            return input
+        end
+        prev_input = 1.0*input
+        norm0 = norm1
+
+        iter += 1
+    end
+
+    println("Max iterations reached!")
+    return input
+end
+optimized_input = newton_method(mechanism, input)
+cost(mechanism, optimized_input)
+norm(FiniteDiff.finite_difference_gradient(x -> cost(mechanism, x), optimized_input))
+
+vis = Visualizer()
+delete!(vis)
+set_configurations!(mechanism, input)
+visualize(mechanism; vis=vis, visualize_floor=false, show_frame=true, show_joint=true, joint_radius=0.005)
+
+# function cost(mechanism, input)
+#     for (i, body) in enumerate(mechanism.bodies)
+#         x = input[1+(i-1)*7:3+(i-1)*7]
+#         q = input[4+(i-1)*7:7+(i-1)*7]
+#         set_maximal_configurations!(body, x=x, q=Quaternion(q[1], q[2], q[3], q[4]))
+#     end
+
+#     res = Dojo.Vector(vcat([Dojo.constraint(mechanism, joint) for joint in mechanism.joints]...))
+#     return res' * I * res
+# end
+
+# Example call
+
+
+
+qDojo.loss(mechanism)
 
 
 visualize(mechanism; vis=vis, visualize_floor=false, show_frame=true, show_joint=true, joint_radius=0.005)
@@ -560,6 +846,78 @@ Dojo.loss(mechanism)
 vis = Visualizer()
 delete!(vis)
 vis = visualize(mechanism; vis=vis, visualize_floor=false, show_frame=false, show_joint=true, joint_radius=0.005)
+# viol = [Dojo.joint_residual_violation(mechanism, joint) for joint in mechanism.joints]
+# loss = viol'*I*viol
+
+# Dojo.violation(mchanism)
+
+# create vector of vector for errors of each 100 trial and 10 poses
+errors = zeros(10, 10) 
+errors_no_noise = zeros(1, 10)
+errors_over_cells = zeros(10, 10)
+NUM_CELL = 3
+noise = 0.0
+for seed in 1:10
+    # set random seed 
+    NUM_CELL = seed
+    srand(seed)
+    for ind in 1:10
+        # a = as[ind]
+        # b = bs[ind]
+        c = cs[ind]
+        # d1 = d1s[ind]
+        # d2 = d2s[ind]
+        α = αs[ind]
+        β = β_check[ind]
+        θ = θs[ind] #acos(max(-1.0, (a^2-2*b^2)/(-2*b^2))) # cos theta
+        # ind = 10
+        # NUM_CELL = 3
+        mechanism = get_PET(αs[ind], NUM_CELL, noise)
+        initialize_PET!(mechanism, αs[ind], β_check[ind], θs[ind], cs[ind], NUM_CELL)
+        # for i in 0:10
+        #     # println("Initializing constraints: iteration $i out of 10")
+        #     try
+        res = initialize_constraints!(mechanism, 
+                                    fixedids=[get_body(mechanism, Symbol("long:c1:l1")).id, get_body(mechanism, Symbol("long:c1:l2")).id],
+                                    regularization=1e-6, #1e-10^(10*i),
+                                    lineIter=LINE_ITER, 
+                                    newtonIter=NEWTON_ITER,
+                                    debug=DEBUG,
+                                    ε = EPSILON)
+        errors[seed, ind] = Dojo.loss(mechanism)
+                                        
+        #         if i == 10
+        #             # push!(errors, res)
+        #             # errors[seed, ind] = res
+        #             if res === nothing
+        #                 errors_over_cells[seed, ind] = 0.0
+        #             else
+        #                 errors_over_cells[seed, ind] = res
+        #             end
+        #             # errors_no_noise[seed, ind] = res
+        #         end
+        #         # vis = visualize(mechanism; vis=vis, visualize_floor=false, show_frame=true, show_joint=true, joint_radius=0.005)
+        #     catch e
+        #         println("Error during initialization on iteration $i: $e")
+        #     end
+        # end
+      
+    end
+end
+# errors
+save("PET_jamming_test_noise_2e-5_100_10.jld2", "errors", errors)
+errors = load("PET_jamming_test_noise_2e-5_100_10.jld2", "errors")
+using Plots
+histogram(sum(errors, dims=2)./10, bins=30, alpha=0.7, label="Average Joint Errors")
+histogram(sum(zeros(100,10), dims=2)./10, bins=30, alph=0.7, label="Sum of Joint Errors (No Noise)")
+
+plot()
+using JLD2
+save("PET_jamming_test_noise_2e-5_01.jld2", "errors", errors)
+
+vis = visualize(mechanism; vis=vis, visualize_floor=false, show_frame=true, show_joint=true, joint_radius=0.005)
+
+
 # function constraintstep!(mechanism::Mechanism{T}, freebodies::Vector{Body{T}}; regularization=1e-6) where T
 # Fetching all the free bodies
 # freebodies = [get_body(mechanism, id) for id in freeids]

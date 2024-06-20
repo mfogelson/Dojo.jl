@@ -135,14 +135,14 @@ function optimize_configuration(; VEHICAL_NAME, DIAMETER, MASS, INITIAL_HEIGHT, 
     @NLconstraint(model, 2*r + 4*thickness <= DIAMETER)
     @NLconstraint(model, 2*thickness <= r)
     @NLconstraint(model, phi[1] >= 0.0)
-    @NLconstraint(model, h[1] >= thickness)
+    @NLconstraint(model, h[1] >= 2*thickness)
     @NLconstraint(model, h[1]*m <= INITIAL_HEIGHT)
     @NLconstraint(model, h[STATES]*m >= EXPANDED_HEIGHT)
     @NLconstraint(model, 12*m <= 750000)
 
     #######################################################################
-    scale = 1000.0
-    @NLobjective(model, Min, (scale*(lAC[STATES]+lBC[STATES]))/((scale*2.0*thickness)^4))
+    scale = 2000.0
+    @NLobjective(model, Min, (scale*(lAC[STATES]+lBC[STATES]))/((scale*thickness)))
     optimize!(model)
 
     #######################################################################
@@ -205,6 +205,7 @@ function optimize_configuration(; VEHICAL_NAME, DIAMETER, MASS, INITIAL_HEIGHT, 
     # println(round(value(h[STATES])*value(m), digits=3))
     formatted_string = @sprintf("%.2e", value(mass))
     println(formatted_string)
+    println("Objective value: ", @sprintf("%.2e", objective_value(model)))
 
     # println(round(value(mass), digits=3))
 
