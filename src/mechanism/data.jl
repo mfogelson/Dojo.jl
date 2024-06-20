@@ -100,15 +100,15 @@ function set_data!(mechanism::Mechanism, data::AbstractVector)
 	c = 0
 	for joint in mechanism.joints
 		Nd = data_dim(joint)
-		set_data!(joint, data[c .+ (1:Nd)]); c += Nd
+		set_data!(joint, data[SUnitRange(c+1,c+Nd)]); c += Nd
 	end
 	for body in mechanism.bodies
 		Nd = data_dim(body, attjac=false)
-		set_data!(body, data[c .+ (1:Nd)], mechanism.timestep); c += Nd
+		set_data!(body, data[SUnitRange(c+1,c+Nd)], mechanism.timestep); c += Nd
 	end
 	for contact in mechanism.contacts
 		Nd = data_dim(contact)
-		set_data!(contact, data[c .+ (1:Nd)]); c += Nd
+		set_data!(contact, data[SUnitRange(c+1,c+Nd)]); c += Nd
 	end
 	for joint in mechanism.joints
 		input_impulse!(joint, mechanism, false)
@@ -156,31 +156,44 @@ function set_data!(body::Body, data::AbstractVector, timestep)
 	return nothing
 end
 
+function set_mass!(body::Body, data::AbstractVector, timestep)
+	# [m,flat(J),x2,v15,q2,ω15]
+	m = data[1]
+	J = Dojo.lift_inertia(data[Dojo.SUnitRange(2,7)])
+	body.mass = m
+	body.inertia = J
+	body.state.x1 = Dojo.next_position(body.state.x2, -body.state.v15, timestep)
+	body.state.q1 = Dojo.next_orientation(body.state.q2, -body.state.ω15, timestep)
+	body.state.JF2 = Dojo.SVector{3}(0,0,0.)
+	body.state.Jτ2 = Dojo.SVector{3}(0,0,0.)
+	return nothing
+end
+
 # Contact
 function set_data!(model::NonlinearContact, data::AbstractVector)
 	model.friction_coefficient = data[1]
     model.collision.contact_radius = data[2]
-    model.collision.contact_origin = data[SVector{3,Int}(3:5)]
+    model.collision.contact_origin = data[SA[3;4;5]]
     return nothing
 end
 
 function set_data!(model::LinearContact, data::AbstractVector)
 	model.friction_coefficient = data[1]
     model.collision.contact_radius = data[2]
-    model.collision.contact_origin = data[SVector{3,Int}(3:5)]
+    model.collision.contact_origin = data[SA[3;4;5]]
     return nothing
 end
 
 function set_data!(model::ImpactContact, data::AbstractVector)
     model.collision.contact_radius = data[1]
-    model.collision.contact_origin = data[SVector{3,Int}(2:4)]
+    model.collision.contact_origin = data[SA[2;3;4]]
     return nothing
 end
 
 function set_data!(contact::ContactConstraint, data::AbstractVector)
 	model = contact.model
 	N = data_dim(model)
-	set_data!(model, data[1:N])
+	set_data!(model, data[SUnitRange(1,N)])
     return nothing
 end
 
@@ -188,7 +201,8 @@ function set_data!(contacts::Vector{<:ContactConstraint}, data::AbstractVector)
 	c = 0
 	for contact in contacts
 		Nd = data_dim(contact)
-		set_data!(contact, data[c .+ (1:Nd)]); c += Nd
+		set_data!(contact, data[SUnitRange(c+1,c+Nd)])
+		c += Nd
 	end
 	return nothing
 end

@@ -6,7 +6,7 @@
     mechanism: Mechanism
     opts: SolverOptions
 """
-function mehrotra!(mechanism::Mechanism; opts=SolverOptions())
+function mehrotra!(mechanism::Mechanism{T}; opts=SolverOptions{T}()) where T
 	reset!.(mechanism.contacts, scale=1.0) # resets the values of s and γ to the scaled neutral vector; TODO: solver option
 	reset!.(mechanism.joints,   scale=1.0) # resets the values of s and γ to the scaled neutral vector; TODO: solver option
 
@@ -17,8 +17,8 @@ function mehrotra!(mechanism::Mechanism; opts=SolverOptions())
     undercut = opts.undercut
     α = 1.0
 
-	initialize!.(mechanism.contacts) # TODO: redundant with resetVars--remove
-    set_entries!(mechanism) # compute the residual
+	initialize!.(mechanism.contacts)
+    set_entries!(mechanism, reg=opts.reg) # compute the residual
 
     bvio = bilinear_violation(mechanism) # does not require to apply set_entries!
     rvio = residual_violation(mechanism) # does not require to apply set_entries!
@@ -27,17 +27,37 @@ function mehrotra!(mechanism::Mechanism; opts=SolverOptions())
     for n = Base.OneTo(opts.max_iter)
         opts.verbose && solver_status(mechanism, α, rvio, bvio, n, μtarget, undercut)
 
-        ((rvio < opts.rtol) && (bvio < opts.btol)) && (status=:success; break)
+        (rvio < opts.rtol) && (bvio < opts.btol) && (status=:success; break)
 		(n == opts.max_iter) && (opts.verbose && (@warn "failed mehrotra"))
 
         # affine search direction
 		μ = 0.0
 		pull_residual!(mechanism)               # store the residual inside mechanism.residual_entries
-        ldu_factorization!(mechanism.system)    # factorize system, modifies the matrix in place
-        pull_matrix!(mechanism)                 # store the factorized matrix inside mechanism.matrix_entries
-        ldu_backsubstitution!(mechanism.system) # solve system, modifies the vector in place
+        #!# Jan LDU Version 
+        # ldu_factorization!(mechanism.system)    # factorize system, modifies the matrix in place
+        # ldu_backsubstitution!(mechanism.system) # solve system, modifies the vector in place
 
-		αaff = cone_line_search!(mechanism; τort=0.95, τsoc=0.95, scaling=false) # uses system.vector_entries which holds the search drection
+        A = full_matrix(mechanism.system)
+        b = full_vector(mechanism.system)
+        #!# Full Matrix Version
+        # out = A \ b
+
+        #!# SVD Version 
+        F = svd(A, full=true, alg=LinearAlgebra.QRIteration())
+        rank = sum(F.S .> 1e-6)
+        V1 = @view F.V[:,1:rank]
+        S1 = @view F.S[1:rank]
+        U1 = @view F.U[:,1:rank]
+
+        out = V1*Diagonal(1.0 ./ S1)*U1'*b
+
+        start = 0
+        for i in eachindex(mechanism.system.vector_entries)
+            mechanism.system.vector_entries[i].value = out[start + 1: start+size(mechanism.system.vector_entries[i].value, 1)]
+            start += size(mechanism.system.vector_entries[i].value, 1)
+        end
+
+		αaff = cone_line_search!(mechanism; τort=0.95, τsoc=0.95) # uses system.vector_entries which holds the search drection
 		ν, νaff = centering!(mechanism, αaff)
 		σcentering = clamp(νaff / (ν + 1e-20), 0.0, 1.0)^3
 
@@ -47,11 +67,23 @@ function mehrotra!(mechanism::Mechanism; opts=SolverOptions())
 		correction!(mechanism) # update the residual in mechanism.residual_entries
 
 		push_residual!(mechanism)               # cache residual + correction
-        push_matrix!(mechanism)                 # restore the factorized matrix
-        ldu_backsubstitution!(mechanism.system) # solve system
+        b = full_vector(mechanism.system)
+        #!# Full Matrix Version
+        # out = A \ b
+
+        #!# SVD Version 
+        out = V1*Diagonal(1.0 ./ S1)*U1'*b
+
+        start = 0
+        for i in eachindex(mechanism.system.vector_entries)
+            mechanism.system.vector_entries[i].value = out[start+1: start + size(mechanism.system.vector_entries[i].value, 1)]
+            start += size(mechanism.system.vector_entries[i].value, 1) 
+        end
+        # mechanism.system.vector_entries .= A \ b
+        # ldu_backsubstitution!(mechanism.system) # solve system
 
 		τ = max(0.95, 1 - max(rvio, bvio)^2) # τ = 0.95
-		α = cone_line_search!(mechanism; τort=τ, τsoc=min(τ, 0.95), scaling=false) # uses system.vector_entries which holds the corrected search drection
+		α = cone_line_search!(mechanism; τort=τ, τsoc=min(τ, 0.95)) # uses system.vector_entries which holds the corrected search drection
 
 		# steps taken without making progress
 		rvio_, bvio_ = line_search!(mechanism, α, rvio, bvio, opts)
@@ -68,7 +100,7 @@ function mehrotra!(mechanism::Mechanism; opts=SolverOptions())
         update!.(mechanism.contacts)
 
 		# recompute Jacobian and residual
-        set_entries!(mechanism)
+        set_entries!(mechanism, reg=opts.reg)
     end
 
     return status
@@ -77,9 +109,9 @@ end
 function solver_status(mechanism::Mechanism, α, rvio, bvio, n, μtarget, undercut)
     fv = full_vector(mechanism.system)
     Δvar = norm(fv, Inf)
-    fM = full_matrix(mechanism.system)
-    fΔ = fM \ fv
-    Δalt = norm(fΔ, Inf)
+    # fM = full_matrix(mechanism.system)
+    # fΔ = fM \ fv
+    # Δalt = norm(fΔ, Inf)
     res = norm(fv, Inf)
 	println(
         n,

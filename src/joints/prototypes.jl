@@ -363,6 +363,33 @@ Spherical(pbody::Node{T}, cbody::Node{T};
         spring_type=spring_type)
 
 """
+MitchJoint{T} <: JointConstraint{T} 
+
+two rotational degrees of freedom between two bodies
+"""
+# MitchJoint(pbody::Node{T}, cbody::Node{T}; 
+#     parent_vertex=szeros(T, 3), 
+#     child_vertex=szeros(T, 3),
+#     orientation_offset=one(Quaternion{T}), 
+#     spring=zero(T), 
+#     damper=zero(T),
+#     rot_spring_offset=szeros(T,3), 
+#     rot_joint_limits=[szeros(T,0), szeros(T,0)],
+#     spring_type=:linear) where T =
+#     Translational{T,3}(pbody, cbody; 
+#         parent_vertex, 
+#         child_vertex, 
+#         spring, 
+#         damper),
+#     Rotational{T,1}(pbody, cbody; 
+#         axis, 
+#         orientation_offset, 
+#         spring, 
+#         damper,
+#         spring_offset=rot_spring_offset, 
+#         joint_limits=rot_joint_limits, 
+#         spring_type=spring_type)
+"""
     CylindricalFree{T} <: JointConstraint{T} 
 
     one translational and three rotational degrees of freedom between two bodies
@@ -459,8 +486,8 @@ function Prototype(joint_type::Symbol, pbody::Node{T}, cbody::Node{T}, axis;
         spring_type=:linear) where T
 
     N̄tra, N̄rot = nullspace_dimension(joint_type)
-    (tra_spring_offset == nothing) && (tra_spring_offset = szeros(T,N̄tra))
-    (rot_spring_offset == nothing) && (rot_spring_offset = szeros(T,N̄rot))
+    (tra_spring_offset === nothing) && (tra_spring_offset = szeros(T,N̄tra))
+    (rot_spring_offset === nothing) && (rot_spring_offset = szeros(T,N̄rot))
     (joint_type == :Fixed)            && (return            Fixed(pbody, cbody;       parent_vertex=parent_vertex, child_vertex=child_vertex, orientation_offset=orientation_offset))
     (joint_type == :Prismatic)        && (return        Prismatic(pbody, cbody, axis; parent_vertex=parent_vertex, child_vertex=child_vertex, orientation_offset=orientation_offset, spring=spring, damper=damper, tra_spring_offset=tra_spring_offset,                                      tra_joint_limits=tra_joint_limits))
     (joint_type == :Planar)           && (return           Planar(pbody, cbody, axis; parent_vertex=parent_vertex, child_vertex=child_vertex, orientation_offset=orientation_offset, spring=spring, damper=damper, tra_spring_offset=tra_spring_offset,                                      tra_joint_limits=tra_joint_limits))

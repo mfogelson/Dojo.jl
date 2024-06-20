@@ -1,7 +1,7 @@
 module Dojo
 
 # constants
-global REG = 1.0e-10::Float64
+global const REG = 1.0e-10::Float64
 
 #TODO: remove
 using FiniteDiff
@@ -12,7 +12,6 @@ using StaticArrays
 using SparseArrays
 using StaticArrays: SUnitRange
 using Quaternions
-using Parameters
 using Statistics
 using Rotations
 
@@ -24,11 +23,9 @@ using MeshCat
 import MeshCat: render
 using Meshing
 using GeometryBasics
-using Graphs
-
+using GraphBasedSystems
 using CoordinateTransformations
 
-using JLD2
 using DocStringExtensions
 
 # Utilities
@@ -42,15 +39,6 @@ include(joinpath("orientation", "mrp.jl"))
 include(joinpath("orientation", "axis_angle.jl"))
 include(joinpath("orientation", "mapping.jl"))
 include(joinpath("orientation", "rotate.jl"))
-
-# Graph system
-include(joinpath("graph", "entry.jl"))
-include(joinpath("graph", "system.jl"))
-include(joinpath("graph", "linear_system.jl"))
-include(joinpath("graph", "adjacency.jl"))
-include(joinpath("graph", "depth_first_search.jl"))
-include(joinpath("graph", "cycles.jl"))
-include(joinpath("graph", "ldu_factorization.jl"))
 
 # Graph objects
 include(joinpath("mechanism", "node.jl"))
@@ -135,6 +123,7 @@ include(joinpath("solver", "initialization.jl"))
 include(joinpath("solver", "correction.jl"))
 include(joinpath("solver", "mehrotra.jl"))
 include(joinpath("solver", "line_search.jl"))
+include(joinpath("solver", "initialize_constraints.jl"))
 
 # Integrator
 include(joinpath("integrators", "integrator.jl"))
@@ -150,17 +139,12 @@ include(joinpath("visuals", "colors.jl"))
 include(joinpath("mechanism", "data.jl"))
 
 # Gradients
+include(joinpath("gradients", "contact.jl"))
 include(joinpath("gradients", "finite_difference.jl"))
 include(joinpath("gradients", "state.jl"))
 include(joinpath("gradients", "data.jl"))
 include(joinpath("gradients", "utilities.jl"))
 
-# # Environments
-# include(joinpath("..", "DojoEnvironments/src", "mechanisms.jl"))
-# include(joinpath("..", "DojoEnvironments/src", "environment.jl"))
-# include(joinpath("..", "DojoEnvironments/src", "dynamics.jl"))
-# include(joinpath("..", "DojoEnvironments/src", "utilities.jl"))
-# include(joinpath("..", "DojoEnvironments/src", "include.jl"))
 
 # Bodies
 export
@@ -172,9 +156,11 @@ export
     Sphere,
     Pyramid,
     Mesh,
-    Shapes,
+    CombinedShapes,
     get_body,
-    get_node, 
+    get_node,
+    set_external_force!,
+    add_external_force!, 
     Triad
 
 # Joints
@@ -236,7 +222,8 @@ export
     Mechanism,
     initialize!,
     set_floating_base,
-    zero_velocity!
+    zero_coordinates!,
+    zero_velocities!
 
 # Maximal
 export
@@ -297,15 +284,19 @@ export
     mehrotra!,
     SolverOptions
 
+# Initialization
+export 
+    initialize_constraints!
+
 # Linear System "Ax = b"
 export
-    full_matrix,
-    full_data_matrix
+    full_matrix
 
 # Visuals
 export
     Visualizer,
     visualize,
+    render,
     set_background!,
     set_floor!,
     set_surface!,
@@ -326,7 +317,6 @@ export
 
 # Utilities
 export
-    Storage,
-    normalize
+    Storage
 
 end

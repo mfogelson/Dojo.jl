@@ -92,7 +92,6 @@ function Base.show(io::IO, mime::MIME{Symbol("text/plain")}, constraint::JointCo
     println(io, "name:          "*string(constraint.name))
     println(io, "spring:        "*string(constraint.spring))
     println(io, "damper:        "*string(constraint.damper))
-    println(io, "damper:        "*string(constraint.damper))
     println(io, "parent_id:     "*string(constraint.parent_id))
     println(io, "child_id:      "*string(constraint.child_id))
     println(io, "minimal_index: "*string(constraint.minimal_index))
@@ -100,16 +99,24 @@ function Base.show(io::IO, mime::MIME{Symbol("text/plain")}, constraint::JointCo
 end
 
 # constraints
-@generated function constraint(mechanism, joint::JointConstraint)
-    pbody = :(get_body(mechanism, joint.parent_id))
-    cbody = :(get_body(mechanism, joint.child_id))
-    tra = :(constraint(joint.translational,
-        $pbody, $cbody,
-        joint.impulses[2][joint_impulse_index(joint,1)], mechanism.μ, mechanism.timestep))
-    rot = :(constraint(joint.rotational,
-        $pbody, $cbody,
-        joint.impulses[2][joint_impulse_index(joint,2)], mechanism.μ, mechanism.timestep))
-    return :(svcat($tra, $rot))
+# @generated function constraint(mechanism, joint::JointConstraint)
+#     pbody = :(get_body(mechanism, joint.parent_id))
+#     cbody = :(get_body(mechanism, joint.child_id))
+#     tra = :(constraint(joint.translational,
+#         $pbody, $cbody,
+#         joint.impulses[2][joint_impulse_index(joint,1)], mechanism.μ, mechanism.timestep))
+#     rot = :(constraint(joint.rotational,
+#         $pbody, $cbody,
+#         joint.impulses[2][joint_impulse_index(joint,2)], mechanism.μ, mechanism.timestep))
+#     return :(svcat($tra, $rot))
+# end
+
+function constraint(mechanism, joint::JointConstraint)
+    pbody = get_body(mechanism, joint.parent_id)
+    cbody = get_body(mechanism, joint.child_id)
+    tra = constraint(joint.translational, pbody, cbody, joint.impulses[2][joint_impulse_index(joint,1)], mechanism.μ, mechanism.timestep)
+    rot = constraint(joint.rotational, pbody, cbody, joint.impulses[2][joint_impulse_index(joint,2)], mechanism.μ, mechanism.timestep)
+    return svcat(tra, rot)
 end
 
 # # constraints Jacobians
@@ -118,9 +125,9 @@ end
 #     rot = :(constraint_jacobian(joint.rotational, joint.impulses[2][joint_impulse_index(joint, 2)]))
 #     return :(cat($tra, $rot, dims=(1,2)))
 # end
-function constraint_jacobian(joint::JointConstraint)
-    tra = constraint_jacobian(joint.translational, joint.impulses[2][joint_impulse_index(joint, 1)])
-    rot = constraint_jacobian(joint.rotational, joint.impulses[2][joint_impulse_index(joint, 2)])
+function constraint_jacobian(joint::JointConstraint; reg::Float64=Dojo.REG)
+    tra = constraint_jacobian(joint.translational, joint.impulses[2][joint_impulse_index(joint, 1)], reg=reg)
+    rot = constraint_jacobian(joint.rotational, joint.impulses[2][joint_impulse_index(joint, 2)], reg=reg)
     return diagonal_cat(tra, rot)
 end
 
@@ -286,8 +293,8 @@ function off_diagonal_jacobians(mechanism, pbody::Body, cbody::Body)
 end
 
 # linear system
-function set_matrix_vector_entries!(mechanism, matrix_entry::Entry, vector_entry::Entry, joint::JointConstraint)
-    matrix_entry.value = constraint_jacobian(joint)
+function set_matrix_vector_entries!(mechanism, matrix_entry::Entry, vector_entry::Entry, joint::JointConstraint; reg::Float64=Dojo.REG)
+    matrix_entry.value = constraint_jacobian(joint, reg=reg)
     vector_entry.value = -constraint(mechanism, joint)
 end
 
@@ -364,16 +371,16 @@ end
     relative = :(body.id == joint.parent_id ? :parent : :child)
     pbody = :(get_body(mechanism, joint.parent_id))
     cbody = :(get_body(mechanism, joint.child_id))
-    rot = :(input_jacobian_control($relative, joint.translational, $pbody, $cbody, mechanism.timestep))
-    tra = :(input_jacobian_control($relative, joint.rotational, $pbody, $cbody, mechanism.timestep))
+    rot = :(input_jacobian_control($relative, joint.translational, $pbody, $cbody, mechanism.input_scaling))
+    tra = :(input_jacobian_control($relative, joint.rotational, $pbody, $cbody, mechanism.input_scaling))
     return :(hcat($rot, $tra))
 end
 
 function input_impulse!(joint::JointConstraint{T,N,Nc}, mechanism, clear::Bool=true) where {T,N,Nc}
     pbody = get_body(mechanism, joint.parent_id)
     cbody = get_body(mechanism, joint.child_id)
-    input_impulse!(joint.translational, pbody, cbody, mechanism.timestep, clear)
-    input_impulse!(joint.rotational, pbody, cbody, mechanism.timestep, clear)
+    input_impulse!(joint.translational, pbody, cbody, mechanism.input_scaling, clear)
+    input_impulse!(joint.rotational, pbody, cbody, mechanism.input_scaling, clear)
     return
 end
 
@@ -404,7 +411,7 @@ function get_joint_impulses(joint::JointConstraint{T,N,Nc}, i::Int) where {T,N,N
     end
     n2 = n1 - 1 + impulses_length((joint.translational, joint.rotational)[i])
 
-    λi = SVector{n2-n1+1,T}(joint.impulses[2][n1:n2])
+    λi = SVector{n2-n1+1,T}(joint.impulses[2][SUnitRange(n1,n2)])
     return λi
 end
 

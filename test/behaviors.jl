@@ -3,8 +3,10 @@
         timestep=0.05,
         gravity=-9.81,
         friction_coefficient=0.8,
-        damper=1000.0,
-        spring=30.0)
+        parse_springs=false,
+        parse_dampers=false,
+        dampers=1000.0,
+        springs=30.0)
 
     initialize!(mech, :quadruped)
 
@@ -37,14 +39,30 @@ end
     end
 end
 
+@testset "Box external force" begin
+    mech = get_mechanism(:block;gravity=0, contact=false, mass=1)
+    mech.bodies[1].inertia = diagm(ones(3))
+
+    controller!(mechanism, k) = (k<=50 ? set_external_force!(mechanism.bodies[1];force=[1;0;0],vertex=[0.5;0;0]) : nothing)
+    initialize!(mech, :block; position=zeros(3), orientation=Dojo.RotZ(pi/2), velocity=zeros(3), angular_velocity=zeros(3))    
+    storage = simulate!(mech, 1.0, controller!, record=true)
+    @test norm(mech.bodies[1].state.vsol[1][2] - 0.5) < 1.0e-3
+
+    controller!(mechanism, k) = (k<=50 ? set_external_force!(mechanism.bodies[1];torque=[1;0;0],vertex=[0.5;0;0]) : nothing)
+    initialize!(mech, :block; position=zeros(3), orientation=Dojo.RotZ(pi/2), velocity=zeros(3), angular_velocity=zeros(3))
+    storage = simulate!(mech, 1.0, controller!, record=true)
+    @test norm(mech.bodies[1].state.ωsol[1][1] - 0.5) < 1.0e-3
+end
+
 @testset "Four-bar linkage" begin
     for timestep in [0.10, 0.05, 0.01, 0.005]
         mech = get_mechanism(:fourbar;
-            model="fourbar",
             timestep,
-            damper=1.0)
+            parse_springs=false,
+			parse_dampers=false,
+            dampers=0.0)
         Dojo.initialize!(mech, :fourbar,
-            angle=0.25)
+            inner_angle=0.25)
         loopjoints = mech.joints[end:end]
         Dojo.root_to_leaves_ordering(mech) == [2, 7, 3, 6, 1, 8, 4, 9]
 
@@ -62,7 +80,7 @@ end
     end
 end
 
-@testset "Tennis racket" begin
+@testset "Dzhanibekov" begin
     # Simulation
     timestep=0.01
     gravity=0.0

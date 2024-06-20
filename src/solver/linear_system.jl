@@ -1,4 +1,4 @@
-function set_entries!(mechanism::Mechanism)
+function set_entries!(mechanism::Mechanism; reg::Float64=Dojo.REG)
     system = mechanism.system
 
     for id in reverse(system.dfs_list)
@@ -7,7 +7,7 @@ function set_entries!(mechanism::Mechanism)
         end
 
         node = get_node(mechanism, id)
-        set_matrix_vector_entries!(mechanism, get_entry(system, id, id), get_entry(system, id), node)
+        set_matrix_vector_entries!(mechanism, get_entry(system, id, id), get_entry(system, id), node; reg=reg)
 
         for child_id in children(system,id)
             set_LU!(mechanism, get_entry(system, id, child_id), get_entry(system, child_id, id), node, get_node(mechanism, child_id))
@@ -31,26 +31,24 @@ end
 
 function pull_residual!(mechanism::Mechanism)
 	for i in eachindex(mechanism.residual_entries)
-		mechanism.residual_entries[i].value = mechanism.system.vector_entries[i].value
+        pull_residual!(mechanism.residual_entries[i], mechanism.system.vector_entries[i])
 	end
 	return
+end
+
+function pull_residual!(residual_entry, vector_entry)
+    residual_entry.value = vector_entry.value
 end
 
 function push_residual!(mechanism::Mechanism)
 	for i in eachindex(mechanism.residual_entries)
-		mechanism.system.vector_entries[i].value = mechanism.residual_entries[i].value
+        push_residual!(mechanism.system.vector_entries[i], mechanism.residual_entries[i])
 	end
 	return
 end
 
-function pull_matrix!(mechanism::Mechanism)
-	mechanism.matrix_entries.nzval .= mechanism.system.matrix_entries.nzval #TODO: make allocation free
-	return
-end
-
-function push_matrix!(mechanism::Mechanism)
-	mechanism.system.matrix_entries.nzval .= mechanism.matrix_entries.nzval #TODO: make allocation free
-	return
+function push_residual!(vector_entry, residual_entry)
+    vector_entry.value = residual_entry.value
 end
 
 function update!(body::Body)

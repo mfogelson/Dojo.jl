@@ -30,7 +30,7 @@ function set_floor!(vis::Visualizer;
     repeat = Int.(ceil.(tilepermeter * [x, y]))
     texture = Texture(image=image, wrap=(1,1), repeat=(repeat[1],repeat[2]))
     mat = MeshPhongMaterial(map=texture)
-    (color != nothing) && (mat = MeshPhongMaterial(color=color))
+    (color !== nothing) && (mat = MeshPhongMaterial(color=color))
     obj = HyperRectangle(Vec(-x/2, -y/2, -z), Vec(x, y, z))
     setobject!(vis[:floor], obj, mat)
 	p = origin
@@ -104,7 +104,7 @@ function set_camera!(vis::Visualizer;
 
     camvis=vis["/Cameras/default/rotated/<object>"]
     setprop!(camvis, "zoom", zoom)
-    (cam_pos != nothing) && MeshCat.settransform!(camvis,
+    (cam_pos !== nothing) && MeshCat.settransform!(camvis,
         MeshCat.compose(
             MeshCat.LinearMap(Dojo.RotX(-1/2 * pi)),
             MeshCat.Translation(cam_pos...),
@@ -150,6 +150,7 @@ function set_arrow!(vis, origin, direction;
 end
 
 function set_background!(vis::Visualizer; top_color=RGBA(1,1,1.0), bottom_color=RGBA(1,1,1.0))
-    setprop!(vis["/Background"], "top_color", top_color)
-    setprop!(vis["/Background"], "bottom_color", bottom_color)
+    # setprop!(vis["/Background"], "top_color", top_color)
+    # setprop!(vis["/Background"], "bottom_color", bottom_color)
+    setprop!(vis["/Background"], "top_color", Dojo.colorant"transparent")
 end

@@ -17,7 +17,9 @@
         :PlanarFree
         ]
     for joint_type in joint_types
-        mech = DojoEnvironments.get_snake(gravity=0.0, num_bodies=2, damper=0.3, joint_type=joint_type)
+        mech = DojoEnvironments.get_snake(;
+        gravity=0.0, num_bodies=2, 
+        dampers=0.3, joint_type)
         DojoEnvironments.initialize_snake!(mech)
         function ctrl!(m,k)
             Dojo.set_input!(m, 0.01*ones(Dojo.minimal_dimension(m)))
@@ -37,7 +39,7 @@
         J0 = Dojo.damper_jacobian_configuration(:parent, :parent, rot0, pbody0, cbody0, timestep0)
         J1 = ForwardDiff.jacobian(
             xq -> timestep0 * Dojo.damper_force(:parent, rot0,
-                Dojo.Quaternion(xq[4:7]...,true), ωa0, qb0, ωb0, timestep0; rotate=true, unitary=false),
+                Dojo.Quaternion(xq[4:7]...), ωa0, qb0, ωb0, timestep0; rotate=true, unitary=false),
             [xa0; Dojo.vector(qa0)]) * Dojo.cat(I(3), Dojo.LVᵀmat(qa0), dims=(1,2))
         norm(J0 - J1, Inf)
         @test norm(J0 - J1, Inf) < 1.0e-8
@@ -45,7 +47,7 @@
         J0 = Dojo.damper_jacobian_configuration(:parent, :child, rot0, pbody0, cbody0, timestep0)
         J1 = ForwardDiff.jacobian(
             xq -> timestep0 * Dojo.damper_force(:parent, rot0, qa0, ωa0,
-                Dojo.Quaternion(xq[4:7]...,true), ωb0, timestep0; rotate=true, unitary=false),
+                Dojo.Quaternion(xq[4:7]...), ωb0, timestep0; rotate=true, unitary=false),
             [xb0; Dojo.vector(qb0)]) * Dojo.cat(I(3), Dojo.LVᵀmat(qb0), dims=(1,2))
         norm(J0 - J1, Inf)
         @test norm(J0 - J1, Inf) < 1.0e-8
@@ -53,7 +55,7 @@
         J0 = Dojo.damper_jacobian_configuration(:child, :parent, rot0, pbody0, cbody0, timestep0)
         J1 = ForwardDiff.jacobian(
             xq -> timestep0 * Dojo.damper_force(:child, rot0,
-                Dojo.Quaternion(xq[4:7]...,true), ωa0, qb0, ωb0, timestep0; rotate=true, unitary=false),
+                Dojo.Quaternion(xq[4:7]...), ωa0, qb0, ωb0, timestep0; rotate=true, unitary=false),
             [xa0; Dojo.vector(qa0)]) * Dojo.cat(I(3), Dojo.LVᵀmat(qa0), dims=(1,2))
         norm(J0 - J1, Inf)
         @test norm(J0 - J1, Inf) < 1.0e-8
@@ -61,7 +63,7 @@
         J0 = Dojo.damper_jacobian_configuration(:child, :child, rot0, pbody0, cbody0, timestep0)
         J1 = ForwardDiff.jacobian(
             xq -> timestep0 * Dojo.damper_force(:child, rot0, qa0, ωa0,
-                Dojo.Quaternion(xq[4:7]...,true), ωb0, timestep0; rotate=true, unitary=false),
+                Dojo.Quaternion(xq[4:7]...), ωb0, timestep0; rotate=true, unitary=false),
             [xb0; Dojo.vector(qb0)]) * Dojo.cat(I(3), Dojo.LVᵀmat(qb0), dims=(1,2))
         norm(J0 - J1, Inf)
         @test norm(J0 - J1, Inf) < 1.0e-8

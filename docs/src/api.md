@@ -22,8 +22,6 @@ Pages = ["api.md"]
 
 ```@docs
 Mechanism
-get_mechanism
-initialize!
 get_node
 get_body
 get_joint
@@ -37,9 +35,13 @@ set_input!
 maximal_dimension 
 minimal_dimension
 input_dimension
-zero_velocity!
+input_dimensions
+zero_coordinates!
+zero_velocities!
 root_to_leaves_ordering
 set_floating_base
+set_external_force!
+add_external_force!
 ```
 
 ### Nodes
@@ -56,7 +58,8 @@ Cylinder
 Capsule
 Sphere
 Pyramid
-Shapes
+FrameShape
+CombinedShapes
 ```
 
 ### Joints
@@ -117,46 +120,11 @@ potential_energy
 momentum
 ```
 
-### Graph
-```@docs
-System
-Entry
-full_matrix 
-full_vector
-```
-
-## Environments
-```@docs
-Environment
-Ant
-Atlas
-Block
-Cartpole
-HalfCheetah
-Hopper
-Panda
-Pendulum
-Quadruped
-RaibertHopper
-RexHopper
-Walker
-get_environment
-step
-get_observation
-cost
-is_done
-reset
-dynamics
-dynamics_jacobian_state 
-dynamics_jacobian_input
-Space
-BoxSpace
-```
-
 ## Simulate
 ```@docs
 Storage
 step!
+step_minimal_coordinates!
 simulate!
 ```
 
@@ -178,7 +146,6 @@ mehrotra!
 ```@docs
 visualize
 build_robot
-set_robot
 set_camera!
 set_light!
 set_surface!

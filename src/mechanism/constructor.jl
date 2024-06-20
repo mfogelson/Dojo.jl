@@ -9,11 +9,10 @@
     contacts: list of ContactConstraint objects
     system: graph-based representation for mechanism
     residual_entries: containt entries for linear system residual
-    matrix_entries: contains entries for linear system matrix
-    diagonal_inverses: contains inverted matrices computing during LU factorization
 	data_matrix: contains parameter information that is fixed during simulation
 	root_to_leaves: list of node connections traversing from root node to leaves
     timestep: time discretization
+    input_scaling: input scaling for internal use of impulses (default: timestep)
     gravity: force vector resulting from gravitational potential
     μ: complementarity violation (contact softness)
 """
@@ -25,13 +24,12 @@ mutable struct Mechanism{T,Nn,Ne,Nb,Ni}
 
     system::System{Nn}
     residual_entries::Vector{Entry}
-    matrix_entries::SparseMatrixCSC{Entry,Int64}
-    diagonal_inverses::Vector{Entry}
 
 	data_matrix::SparseMatrixCSC{Entry,Int64}
 	root_to_leaves::Vector{Int64}
 
     timestep::T
+    input_scaling::T
     gravity::SVector{3,T}
     μ::T
 end
@@ -46,11 +44,10 @@ function Base.show(io::IO, mime::MIME{Symbol("text/plain")}, mechanism::Mechanis
 end
 
 function Mechanism(origin::Origin{T}, bodies::Vector{Body{T}}, joints::Vector{<:JointConstraint{T}}, contacts::Vector{<:ContactConstraint{T}};
-    timestep=0.01, 
-    gravity=[0.0; 0.0;-9.81]) where T
+    timestep=0.01, input_scaling=timestep, gravity=[0.0; 0.0;-9.81]) where T
 
     # reset ids
-    resetGlobalID()
+    # resetGlobalID()
 
     # check body inertia parameters
     check_body.(bodies)
@@ -71,8 +68,6 @@ function Mechanism(origin::Origin{T}, bodies::Vector{Body{T}}, joints::Vector{<:
     # graph system
     system = create_system(origin, joints, bodies, contacts)
     residual_entries = deepcopy(system.vector_entries)
-    matrix_entries = deepcopy(system.matrix_entries)
-    diagonal_inverses = deepcopy(system.diagonal_inverses)
 
 	# data gradient system
 	data_matrix = create_data_matrix(joints, bodies, contacts)
@@ -85,7 +80,7 @@ function Mechanism(origin::Origin{T}, bodies::Vector{Body{T}}, joints::Vector{<:
             exclude_loop_joints=false)
 
     Mechanism{T,Nn,Ne,Nb,Ni}(origin, joints, bodies, contacts, system, residual_entries,
-		matrix_entries, diagonal_inverses, data_matrix, root_to_leaves, timestep, get_gravity(gravity), 0.0)
+		data_matrix, root_to_leaves, timestep, input_scaling, get_gravity(gravity), 0.0)
 end
 
 Mechanism(origin::Origin{T}, bodies::Vector{Body{T}}, joints::Vector{<:JointConstraint{T}}; kwargs...) where T =
@@ -94,16 +89,21 @@ Mechanism(origin::Origin{T}, bodies::Vector{Body{T}}, joints::Vector{<:JointCons
 function Mechanism(filename::String; 
     floating::Bool=false, 
     T=Float64,
-    parse_damper=true, 
+    parse_dampers=true, 
+    keep_fixed_joints=true,
     kwargs...)
     # parse urdf
-    origin, links, joints, loopjoints = parse_urdf(filename, floating, T, parse_damper)
+    origin, links, joints, loopjoints = parse_urdf(filename, floating, T, parse_dampers)
 
     # create mechanism
     mechanism = Mechanism(origin, links, [joints; loopjoints]; kwargs...)
 
     # initialize mechanism
     set_parsed_values!(mechanism, loopjoints)
+
+    if !keep_fixed_joints
+        mechanism = reduce_fixed_joints(mechanism; kwargs...)
+    end
 
     return mechanism
 end

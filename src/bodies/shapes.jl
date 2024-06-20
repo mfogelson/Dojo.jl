@@ -133,9 +133,7 @@ mutable struct Cylinder{T} <: Shape{T}
 end
 
 """
-    Capsule{T} <: Shape{T}
-
-    capsule geometry 
+    Capsule geometry created as a CombinedShapes
     
     position_offset: geometry origin offset from center of mass
     orientation_offset: orientation offset from body frame
@@ -143,30 +141,26 @@ end
     scale: scaling
     color: RGBA
 """
-mutable struct Capsule{T} <: Shape{T}
-    position_offset::SVector{3,T}
-    orientation_offset::Quaternion{T}
-    rh::SVector{2,T}
-    scale::SVector{3,T}
-    color::RGBA
+function Capsule(r::Real, h::Real;
+        position_offset::AbstractVector=szeros(3), 
+        orientation_offset::Quaternion=one(Quaternion),
+        scale::AbstractVector=sones(3), 
+        color=RGBA(0.75, 0.75, 0.75))
+    T = promote_type(quateltype.((r, h, position_offset, orientation_offset))...)
 
-    # Capsule points in the z direction
-    function Capsule(r::Real, h::Real;
-            position_offset::AbstractVector=szeros(3), 
-            orientation_offset::Quaternion=one(Quaternion),
-            scale::AbstractVector=sones(3), 
-            color=RGBA(0.75, 0.75, 0.75))
-        T = promote_type(quateltype.((r, h, position_offset, orientation_offset))...)
-        new{T}(position_offset, orientation_offset, [r; h], scale, color)
-    end
+    cylinder = Cylinder(r, h)
+    cap1 = Sphere(r; position_offset=[0;0;h/2])
+    cap2 = Sphere(r; position_offset=[0;0;-h/2])
+    CombinedShapes([cylinder;cap1;cap2]; position_offset, orientation_offset, scale, color)
+end
 
-    function Capsule(r::Real, h::Real, m::Real;
-            position_offset::AbstractVector=szeros(3), 
-            orientation_offset::Quaternion=one(Quaternion),
-            scale::AbstractVector=sones(3), 
-            name::Symbol=Symbol("body_" * randstring(4)), 
-            color=RGBA(0.75, 0.75, 0.75))
-        T = promote_type(quateltype.((r, h, m, position_offset, orientation_offset))...)
+function Capsule(r::Real, h::Real, m::Real;
+        position_offset::AbstractVector=szeros(3), 
+        orientation_offset::Quaternion=one(Quaternion),
+        scale::AbstractVector=sones(3), 
+        name::Symbol=Symbol("body_" * randstring(4)), 
+        color=RGBA(0.75, 0.75, 0.75))
+    T = promote_type(quateltype.((r, h, m, position_offset, orientation_offset))...)
 
         mass_cylinder = π * h * r^2.0
         mass_hemisphere = π * 2.0 / 3.0 * r^3.0 
@@ -179,69 +173,43 @@ mutable struct Capsule{T} <: Shape{T}
 
         J = m * diagm([Ixx; Ixx; Izz])
 
-        return Body(m, J; name=name, shape=new{T}(position_offset, orientation_offset, [r; h], scale, color))
-    end
+    return Body(m, J; name=name, shape=Capsule(r, h; position_offset, orientation_offset, scale, color))
 end
 
 """
-    Triad{T} <: Shape{T}
-
-    triad geometry (coordinate frame)
-    
-    position_offset: geometry origin offset from center of mass
-    orientation_offset: orientation offset from body frame
-    scale: scaling
-"""
-mutable struct Triad{T} <: Shape{T}
-    position_offset::SVector{3,T}
-    orientation_offset::Quaternion{T}
-    scale::SVector{3,T}
-
-    # Capsule points in the z direction
-    function Triad(position_offset::AbstractVector=szeros(3), 
-            orientation_offset::Quaternion=one(Quaternion);
-            scale::AbstractVector=sones(3), 
-            color=RGBA(0.75, 0.75, 0.75))
-        T = promote_type(quateltype.((position_offset, orientation_offset))...)
-        new{T}(position_offset, orientation_offset, [r; h], scale, color)
-    end
-end
-
-"""
-    Shapes{T} <: Shape{T}
+CombinedShapes{T} <: Shape{T}
 
     composite geometry
     
-    shape: list of Shape objects
     position_offset: geometry origin offset from center of mass
     orientation_offset: orientation offset from body frame
+    shape: list of Shape objects
     xyz: dimensions (meters)
-    scale: scaling
-    color: RGBA
 """
-mutable struct Shapes{T} <: Shape{T}
-    shape::Vector 
+mutable struct CombinedShapes{T} <: Shape{T}
     position_offset::SVector{3,T}
     orientation_offset::Quaternion{T}
+    shapes::Vector{<:Shape{T}}
     scale::SVector{3,T}
     color::RGBA
 
-    function Shapes(shapes::Vector{Shape{T}}; 
+    function CombinedShapes(shapes::Vector{<:Shape{T}}; 
         position_offset::AbstractVector=szeros(3), 
         orientation_offset::Quaternion=one(Quaternion),
         scale::AbstractVector=sones(3), 
-        name::Symbol=Symbol("body_" * randstring(4)), 
         color=RGBA(0.75, 0.75, 0.75)) where T
-        new{T}(shapes, position_offset, orientation_offset, scale, color)
+
+        new{T}(position_offset, orientation_offset, shapes, scale, color)
     end
 
-    function Shapes(shapes::Vector, m::T, J; 
+    function CombinedShapes(shapes::Vector{<:Shape{T}}, m::T, J; 
         position_offset::AbstractVector=szeros(3), 
         orientation_offset::Quaternion=one(Quaternion),
+        name::Symbol=Symbol("body_" * randstring(4)),
         scale::AbstractVector=sones(3), 
-        name::Symbol=Symbol("body_" * randstring(4)), 
         color=RGBA(0.75, 0.75, 0.75)) where T
-        Body(m, J; name=name, shape=new{T}(shapes, position_offset, orientation_offset, scale, color))
+
+        Body(m, J; name=name, shape=new{T}(position_offset, orientation_offset, shapes, scale, color))
     end
 end
 
@@ -323,6 +291,42 @@ mutable struct Pyramid{T} <: Shape{T}
     end
 end
 
+"""
+    FrameShape{T} <: Shape{T}
+
+    coordinate frame geometry 
+    
+    position_offset: geometry origin offset from center of mass
+    orientation_offset: orientation offset from body frame
+    scale: scaling
+    color: not used
+"""
+mutable struct FrameShape{T} <: Shape{T}
+    position_offset::SVector{3,T}
+    orientation_offset::Quaternion{T}
+    scale::SVector{3,T}
+    color::RGBA
+
+    function FrameShape(;
+            position_offset::AbstractVector=szeros(3), 
+            orientation_offset::Quaternion=one(Quaternion),
+            scale::AbstractVector=sones(3), 
+            color=RGBA(0.75, 0.75, 0.75))
+        T = promote_type(quateltype.((position_offset, orientation_offset))...)
+        new{T}(position_offset, orientation_offset, scale, color)
+    end
+
+    function FrameShape(m::Real;
+            position_offset::AbstractVector=szeros(3), 
+            orientation_offset::Quaternion=one(Quaternion),
+            scale::AbstractVector=sones(3), 
+            name::Symbol=Symbol("body_" * randstring(4)), color=RGBA(0.75, 0.75, 0.75))
+        T = promote_type(quateltype.((m, position_offset, orientation_offset))...)
+        J = m * sI(3)
+        return Body(m, J; name=name, shape=new{T}(position_offset, orientation_offset, scale, color))
+    end
+end
+
 function Base.show(io::IO, mime::MIME{Symbol("text/plain")}, shape::Shape)
     summary(io, shape)
     println(io,"")
@@ -352,6 +356,10 @@ function convert_shape(pyramid::Pyramid)
     return GeometryBasics.Pyramid(Point(0.0, 0.0, -h / 4.0), h, w)
 end
 
+function convert_shape(frame::FrameShape)
+    return MeshCat.Triad()
+end
+
 function convert_shape(mesh::Mesh)
     return MeshFileObject(mesh.path)
 end
@@ -360,20 +368,10 @@ function convert_shape(::EmptyShape)
     return nothing
 end
 
-function convert_shape(capsule::Capsule)
-    r, h = Tuple(capsule.rh)
-    p1 = Point(0.0, 0.0, -h / 2.0)
-    p2 = Point(0.0, 0.0, h / 2.0)
-    cyl = GeometryBasics.Cylinder(p1, p2, r)
-    cap1 = GeometryBasics.Sphere(p1, r)
-    cap2 = GeometryBasics.Sphere(p2, r)
-    return [cyl, cap1, cap2]
-end
-
-function convert_shape(shapes::Shapes)
+function convert_shape(combinedshapes::CombinedShapes)
     geom = []
-    for s in shapes.shape
-        push!(geom, convert_shape(s))
+    for shape in combinedshapes.shapes
+        push!(geom, convert_shape(shape))
     end
     return geom
 end
@@ -385,7 +383,7 @@ function set_color!(shape::Shape, color)
     shape.color = color
 end
 
-function set_color!(shapes::Shapes, color)
+function set_color!(shapes::CombinedShapes, color)
     for i in eachindex(shapes)
         shapes.shape[i].color = color
     end

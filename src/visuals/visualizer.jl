@@ -11,30 +11,33 @@
     color: RGBA 
     name: unique identifier for mechanism
 """
-function visualize(mechanism::Mechanism, storage::Storage{T,N}; vis::Visualizer=Visualizer(),
+function visualize(mechanism::Mechanism, storage::Storage{T,N}; 
+    vis::Visualizer=Visualizer(),
+    framerate=60, # Inf for 1/timestep
     build::Bool=true, 
     show_joint=false,
     joint_radius=0.1,
-    show_contact=false, 
+    show_contact=false,
+    show_frame=false, 
     animation=nothing, 
     color=nothing, 
-    name::Symbol=:robot) where {T,N}
+    name::Symbol=:robot,
+    return_animation=false,
+    visualize_floor=true) where {T,N}
 
     storage = deepcopy(storage)
     bodies = mechanism.bodies
     origin = mechanism.origin
 
     # Build robot in the visualizer
-    build && build_robot(mechanism, 
-        vis=vis, 
-        show_joint=show_joint,
-        show_contact=show_contact, 
-        color=color, 
-        name=name)
+    build && build_robot(mechanism; 
+        vis, show_joint, joint_radius, show_contact, show_frame, color, name, visualize_floor)
 
     # Create animations
-    framerate = Int64(round(1/mechanism.timestep))
-    (animation == nothing) && (animation =
+    timestep_max = 1/framerate
+    time_factor = Int64(maximum([1;floor(timestep_max/mechanism.timestep)]))
+    framerate = Int64(round(1/(mechanism.timestep*time_factor)))
+    (animation === nothing) && (animation =
         MeshCat.Animation(Dict{MeshCat.SceneTrees.Path,MeshCat.AnimationClip}(), framerate))
 
     # Bodies and Contacts
@@ -48,13 +51,12 @@ function visualize(mechanism::Mechanism, storage::Storage{T,N}; vis::Visualizer=
             showshape = true
         end
 
-        animate_node!(storage, id, shape, animation, subvisshape, showshape)
+        animate_node!(storage, id, shape, animation, subvisshape, showshape, time_factor)
 
         if show_joint
             for (jd, joint) in enumerate(mechanism.joints)
                 if joint.child_id == body.id
-                    radius = 0.1
-                    joint_shape = Sphere(radius, 
+                    joint_shape = Sphere(joint_radius, 
                         position_offset=joint.translational.vertices[2],
                         color=RGBA(0.0, 0.0, 1.0, 0.5))
                     visshape = convert_shape(joint_shape)
@@ -64,7 +66,7 @@ function visualize(mechanism::Mechanism, storage::Storage{T,N}; vis::Visualizer=
                         subvisshape = vis[name][:joints][Symbol(joint.name, "__id_$(jd)")]
                         showshape = true
                     end
-                    animate_node!(storage, id, joint_shape, animation, subvisshape, showshape)
+                    animate_node!(storage, id, joint_shape, animation, subvisshape, showshape, time_factor)
                 end
             end
         end
@@ -85,9 +87,17 @@ function visualize(mechanism::Mechanism, storage::Storage{T,N}; vis::Visualizer=
                         subvisshape = vis[name][:contacts][Symbol(contact.name, "__id_$(jd)")]
                         showshape = true
                     end
-                    animate_node!(storage, id, contact_shape, animation, subvisshape, showshape)
+                    animate_node!(storage, id, contact_shape, animation, subvisshape, showshape, time_factor)
                 end
             end
+        end
+
+        if show_frame
+            frame_shape = FrameShape(scale=0.33*ones(3))
+            visshape = convert_shape(frame_shape)
+            subvisshape = vis[name][:frames][Symbol(body.name, "__id_$id")]
+            showshape = true
+            animate_node!(storage, id, frame_shape, animation, subvisshape, showshape, time_factor)
         end
     end
 
@@ -102,7 +112,45 @@ function visualize(mechanism::Mechanism, storage::Storage{T,N}; vis::Visualizer=
     end
 
     setanimation!(vis, animation)
-    return vis, animation
+    return_animation ? (return vis, animation) : (return vis) 
+end
+
+"""
+    visualize(mechanism; vis, build, show_contact, animation, color, name)
+
+    visualize mechanism pose from current state 
+
+    mechanism: Mechanism 
+    vis: Visualizer 
+    build: flag to construct mechanism visuals (only needs to be built once)
+    show_contact: flag to show contact locations on system 
+    color: RGBA 
+    name: unique identifier for mechanism
+"""
+function visualize(mechanism::Mechanism; 
+    vis::Visualizer=Visualizer(),
+    framerate=60, # Inf for 1/timestep
+    build::Bool=true, 
+    show_joint=false,
+    joint_radius=0.1,
+    show_contact=false,
+    show_frame=false, 
+    animation=nothing, 
+    color=nothing, 
+    name::Symbol=:robot,
+    return_animation=false,
+    visualize_floor=true) where {T,N}
+
+    # Create 1 step storage from current body state
+    storage = Storage(1, length(mechanism.bodies))
+    for (i, body) in enumerate(mechanism.bodies)
+        storage.x[i][1] = body.state.x2
+        storage.q[i][1] = body.state.q2
+    end
+
+    visualize(mechanism, storage; 
+        vis, framerate, build, show_joint, joint_radius, show_contact, show_frame, 
+        animation, color, name, return_animation, visualize_floor)
 end
 
 """
@@ -121,14 +169,16 @@ function build_robot(mechanism::Mechanism;
     show_joint=false,
     joint_radius=0.1,
     show_contact=false, 
+    show_frame=false,
     name::Symbol=:robot, 
-    color=nothing) where {T,N}
+    color=nothing,
+    visualize_floor=true)
 
     bodies = mechanism.bodies
     origin = mechanism.origin
-    # set_background!(vis)
-    # set_light!(vis)
-    # set_floor!(vis)
+    set_background!(vis)
+    set_light!(vis)
+    visualize_floor && set_floor!(vis)
 
     # Bodies and Contacts
     for (id, body) in enumerate(bodies)
@@ -180,6 +230,14 @@ function build_robot(mechanism::Mechanism;
                     end
                 end
             end
+        end
+
+        if show_frame
+            frame_shape = FrameShape(scale=0.33*ones(3))
+            visshape = convert_shape(frame_shape)
+            subvisshape = vis[name][:frames][Symbol(body.name, "__id_$id")]
+            setobject!(subvisshape, visshape, frame_shape, 
+                transparent=false)
         end
     end
 
@@ -325,7 +383,7 @@ end
 MeshCat.js_scaling(s::AbstractVector) = s
 MeshCat.js_position(p::AbstractVector) = p
 
-function set_node!(x, q, id, shape, shapevisualizer, showshape) where {T,N}
+function set_node!(x, q, shape, shapevisualizer, showshape)
     if showshape
         # TODO currently setting props directly because MeshCat/Rotations doesn't convert scaled rotation properly.
         # If this changes, do similarily to origin
@@ -336,22 +394,24 @@ function set_node!(x, q, id, shape, shapevisualizer, showshape) where {T,N}
     return
 end
 
-function animate_node!(storage::Storage{T,N}, id, shape, animation, shapevisualizer, showshape) where {T,N}
-    for i=1:N
+function animate_node!(storage::Storage{T,N}, id, shape, animation, shapevisualizer, showshape, time_factor) where {T,N}
+    frame_id = 1
+    for i=1:time_factor:N
         x = storage.x[id][i]
         q = storage.q[id][i]
-        atframe(animation, i) do
-            set_node!(x, q, id, shape, shapevisualizer, showshape)
+        atframe(animation, frame_id) do
+             set_node!(x, q, shape, shapevisualizer, showshape)
         end
+        frame_id += 1
     end
     return
 end
 
-function MeshCat.setobject!(subvisshape, visshape, shapes::Shapes; 
-    transparent=false)
-    for (i, s) in enumerate(shapes.shape)
-        v = subvisshape["node_$i"]
-        setobject!(v, visshape[i], s, transparent=transparent)
+function MeshCat.setobject!(subvisshape, visshapes::Vector, shape::CombinedShapes; transparent=false)
+    for (i,visshape) in enumerate(visshapes) 
+        v = subvisshape["shape"*string(i)]
+        s = shape.shapes[i]
+        setobject!(v, visshape, s; transparent)
         scale_transform = MeshCat.LinearMap(diagm(s.scale))
         x_transform = MeshCat.Translation(s.position_offset)
         q_transform = MeshCat.LinearMap(s.orientation_offset)
@@ -360,21 +420,18 @@ function MeshCat.setobject!(subvisshape, visshape, shapes::Shapes;
     end
 end
 
-function MeshCat.setobject!(subvisshape, visshape, shape::Shape; 
-    transparent=false)
+function MeshCat.setobject!(subvisshape, visshape, shape::Shape; transparent=false)
     setobject!(subvisshape, visshape, MeshPhongMaterial(color=(transparent ? RGBA(0.75, 0.75, 0.75, 0.5) : shape.color)))
 end
 
-function MeshCat.setobject!(subvisshape, visshape::Vector, shape::Capsule; transparent=false)
-    setobject!(subvisshape["cylinder"], visshape[1], MeshPhongMaterial(color=(transparent ? RGBA(0.75, 0.75, 0.75, 0.5) : shape.color)))
-    setobject!(subvisshape["cap1"], visshape[2], MeshPhongMaterial(color=(transparent ? RGBA(0.75, 0.75, 0.75, 0.5) : shape.color)))
-    setobject!(subvisshape["cap2"], visshape[3], MeshPhongMaterial(color=(transparent ? RGBA(0.75, 0.75, 0.75, 0.5) : shape.color)))
+function MeshCat.setobject!(subvisshape, visshape, shape::FrameShape; transparent=false)
+    setobject!(subvisshape, visshape)
 end
 
 function MeshCat.setobject!(subvisshape, visshape, shape::Mesh; transparent=false)
     if visshape.mtl_library == ""
         visshape = MeshFileGeometry(visshape.contents, visshape.format)
-        setobject!(subvisshape, visshape, MeshPhongMaterial(color=shape.color))
+        setobject!(subvisshape, visshape, MeshPhongMaterial(color=(transparent ? RGBA(0.75, 0.75, 0.75, 0.5) : shape.color)))
     else
         setobject!(subvisshape, visshape)
     end

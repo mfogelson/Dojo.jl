@@ -10,9 +10,7 @@ function maximal_to_minimal_jacobian(mechanism::Mechanism{T,Nn,Ne,Nb,Ni}, z::Abs
 	J = zeros(minimal_dimension(mechanism), maximal_dimension(mechanism) - Nb)
 	timestep= mechanism.timestep
 	row_shift = 0
-	for id in mechanism.root_to_leaves
-		(id > Ne) && continue # only treat joints
-		joint = mechanism.joints[id]
+	for joint in mechanism.joints
 		c_shift = 0
 		v_shift = input_dimension(joint)
 		ichild = joint.child_id - Ne
@@ -94,7 +92,7 @@ function get_maximal_gradients(mechanism::Mechanism{T,Nn,Ne,Nb,Ni}) where {T,Nn,
 	index_state = [index_col[body.id][[14:16; 8:10; 17:19; 11:13]] for body in mechanism.bodies] # ∂ x2 v15 q2 ω15
 	index_control = [index_col[joint.id][1:input_dimension(joint)] for joint in mechanism.joints] # ∂ u
 
-	datamat = full_matrix(mechanism.data_matrix, dimrow, dimcol)
+	datamat = full_matrix(mechanism.data_matrix, false, dimrow, dimcol)
 	solmat = full_matrix(mechanism.system)
 
 	# data Jacobian
@@ -154,10 +152,11 @@ function minimal_to_maximal_jacobian(mechanism::Mechanism{T,Nn,Ne,Nb,Ni}, x::Abs
 	col = [] # ordering joints from root to tree
 	col_idx = zeros(Int,Ne)
 	cnt = 0
-	for id in mechanism.root_to_leaves
-		(id > Ne) && continue # only keep joints
-		cnt += 1
+	for joint in mechanism.joints
+		id = joint.id
 		nu = input_dimension(get_joint(mechanism, id))
+		nu == 0 && continue # ignore fixed joints
+		cnt += 1
 		if length(col) > 0
 			push!(col, col[end][end] .+ (1:2nu))
 		else
@@ -166,15 +165,14 @@ function minimal_to_maximal_jacobian(mechanism::Mechanism{T,Nn,Ne,Nb,Ni}, x::Abs
 		col_idx[id] = cnt
 	end
 
-	 # chain partials together from root to leaves
-	for id in mechanism.root_to_leaves
-		!(Ne < id <= Ne+Nb) && continue # only treat bodies
-		cnode = get_node(mechanism, id)
-		for joint in parent_joints(mechanism, cnode)
+	 # chain partials together
+	for body in mechanism.bodies
+		for joint in parent_joints(mechanism, body)
+			input_dimension(joint) == 0 && continue
 			pnode = get_node(mechanism, joint.parent_id, origin=true)
-			J[row[cnode.id-Ne], col[col_idx[joint.id]]] += partials[[cnode.id, joint.id]] # ∂zi∂θp(i)
+			J[row[body.id-Ne], col[col_idx[joint.id]]] += partials[[body.id, joint.id]] # ∂zi∂θp(i)
 			(pnode.id == 0) && continue # avoid origin
-			J[row[cnode.id-Ne], :] += partials[[cnode.id, pnode.id]] * J[row[pnode.id-Ne], :] # ∂zi∂zp(p(i)) * ∂zp(p(i))/∂θ
+			J[row[body.id-Ne], :] += partials[[body.id, pnode.id]] * J[row[pnode.id-Ne], :] # ∂zi∂zp(p(i)) * ∂zp(p(i))/∂θ
 		end
 	end
 	return J
@@ -194,7 +192,7 @@ end
 function get_minimal_gradients!(mechanism::Mechanism{T}, y::AbstractVector{T}, u::AbstractVector{T};
 	opts=SolverOptions()) where T
 	# simulate next state
-	step!(mechanism, y, u, opts=opts)
+	step_minimal_coordinates!(mechanism, y, u, opts=opts)
 	return get_minimal_gradients!(mechanism)
 end
 
