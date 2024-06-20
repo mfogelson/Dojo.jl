@@ -556,7 +556,39 @@ annotate!([(θs[end-1], ymin - 0.1 * (ymax - ymin), text("Deployed", :right, 10)
 plot!()
 
 
-out = load("PET_jamming_test_noise_0.0_run_2_pose_10_cell_1.jld2")["errors"]
+errors = load("/mnt/nvme/home/mitch/.julia/dev/Dojo/PET_jamming_test_noise_0.0_run_10_pose_10_cell_1.jld2")["errors"]
+
+true_data_color = :blue
+mean_color = :red
+
+# Start the plot with the axis labels
+plot(θs, errors[1,:], alpha=0.3, color=true_data_color, label=nothing, 
+     xlabel="θ [rad]", ylabel="Potential Energy [N/m²]")
+
+# Continue plotting the true data
+for i in 2:9
+    plot!(θs, errors[i,:], alpha=0.3, color=true_data_color, label=nothing)
+end
+plot!(θs, errors[10,:], alpha=0.3, color=true_data_color, label=nothing)
+
+# Compute the mean and standard deviation
+mean_values = Dojo.mean(errors, dims=1)'
+std_values = Dojo.std(errors, dims=1)'
+
+# Plot the shaded region between the standard deviation
+plot!(θs, mean_values, ribbon=std_values, fillalpha=0.2, color=mean_color, label="Average Error ±1 Std Dev", legend=:topright)
+
+# Annotate the "1 cell" and "10 cell" lines with arrows and text
+middle_idx = length(θs) ÷ 2  # Choose a midpoint for the annotation
+annotate!([(θs[middle_idx], errors[1, middle_idx], text("1 cell", :left, 10)),
+          (θs[middle_idx], errors[10, middle_idx], text("10 cells", :left, 10))])
+
+# Annotate "Deployed" on the left and "Collapsed" on the right of the x-axis
+ymin, ymax = ylims()  # Get current y-axis limits
+annotate!([(θs[end-1], ymin - 0.1 * (ymax - ymin), text("Deployed", :right, 10)),
+          (θs[4], ymin - 0.1 * (ymax - ymin), text("Collapsed", :left, 10))])
+plot!()
+
 using Plots
 plot(θs, out[1,:], label="Run 1")
 plot!(θs, out[2,:], label="Run 2")
@@ -575,7 +607,7 @@ vis = visualize(mechanism; vis=vis, visualize_floor=false, show_frame=true, show
 
 #######################
 # Initialize mechanism
-ind = 10
+ind = 1
 NUM_CELL = 3
 noise = 2e-4
 mechanism = get_PET(αs[ind], NUM_CELL, noise)
@@ -597,6 +629,7 @@ initialize_PET!(mechanism, αs[ind], β_check[ind], θs[ind], cs[ind], NUM_CELL)
 # viol = [Dojo.joint_residual_violation(mechanism, joint) for joint in mechanism.joints]
 # loss = viol'*I*viol
 Dojo.loss(mechanism)
+
 
 vis = Visualizer()
 visualize(mechanism; vis=vis, visualize_floor=false, show_frame=true, show_joint=true, joint_radius=0.005)
@@ -773,19 +806,14 @@ visualize(mechanism; vis=vis, visualize_floor=false, show_frame=true, show_joint
 qDojo.loss(mechanism)
 
 
-
-
-
-
-
 visualize(mechanism; vis=vis, visualize_floor=false, show_frame=true, show_joint=true, joint_radius=0.005)
 # using AppleAccelerate
 res = initialize_constraints!(mechanism, 
                                     fixedids=[get_body(mechanism, Symbol("long:c1:l1")).id, get_body(mechanism, Symbol("long:c1:l2")).id],
                                     regularization=1e-5,
                                     lineIter=LINE_ITER, 
-                                    newtonIter=NEWTON_ITER,
-                                    debug=DEBUG,
+                                    newtonIter=10,
+                                    debug=true,
                                     ε = EPSILON)
 Dojo.loss(mechanism)
 for i in 0:10

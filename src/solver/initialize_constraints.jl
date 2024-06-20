@@ -68,6 +68,8 @@ function constraintstep!(mechanism::Mechanism{T}, freebodies::Vector{Body{T}}; r
     return 
 end
 
+
+
 function constraintstep_qr!(mechanism::Mechanism{T}, freebodies::Vector{Body{T}}; regularization=1e-6) where T
     # Fetching all the free bodies
     # freebodies = [get_body(mechanism, id) for id in freeids]
@@ -113,6 +115,12 @@ function constraintstep_qr!(mechanism::Mechanism{T}, freebodies::Vector{Body{T}}
     # Solving for the step vector with L2 regularization
     # stepvec = -([con_jac; I(num_bodies)*regularization])\[res; zeros(num_bodies)]
     # stepvec = -(con_jac'*con_jac+I(num_bodies)*regularization)\(con_jac'*res)
+
+#     A = con_jac'*con_jac #+I(num_bodies)*regularization
+#     b = collect(con_jac'*res)
+#     Q, R = qr(collect(A))
+#     stepvec = -R\(Q'*b)
+
     attjac = cat(data_attitude_jacobian_config.(freebodies)..., dims=(1,2))
     # println(size(con_jac), size(attjac))
     A = (con_jac+I*regularization)*attjac # con_jac'*con_jac+I(num_bodies)*regularization
@@ -185,8 +193,8 @@ function initialize_constraints!(mechanism::Mechanism{T}; fixedids = Int64[], fr
 
         # Copy state variables from previous step
         for body in freebodies
-            body.state.x1 = body.state.x2
-            body.state.q1 = body.state.q2
+            body.state.x1 = 1.0*body.state.x2
+            body.state.q1 = 1.0*body.state.q2
         end
 
         # Compute the constraint step
@@ -227,9 +235,9 @@ function initialize_constraints!(mechanism::Mechanism{T}; fixedids = Int64[], fr
             # If violation increased, reset to previous step
             for body in freebodies
                 # Update body states
-                body.state.x2 = body.state.x1
+                body.state.x2 = 1.0*body.state.x1
                 # Update orientation using a quaternion
-                body.state.q2 = body.state.q1
+                body.state.q2 = 1.0*body.state.q1
             end
         else
             # If violation decreased, update norm0
