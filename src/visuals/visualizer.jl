@@ -252,6 +252,127 @@ function build_robot(mechanism::Mechanism;
     return vis
 end
 
+"""
+add_axis!
+"""
+function add_axes!(vis,axes_name, scale, R; head_l = 0.1, head_w = 0.05, r = zeros(3), q = [1.0, 0.0, 0.0, 0.0])
+	red_col =RGBA(1.0,0.0,0.0,1.0)
+	green_col =RGBA(0.0,1.0,0.0,1.0)
+	blue_col =RGBA(0.0,0.0,1.0,1.0)
+
+	cylx = GeometryBasics.Cylinder(Point(0,0,0.0), Point(scale,0,0.0), R)
+	cyly = GeometryBasics.Cylinder(Point(0,0,0.0), Point(0,scale,0.0), R)
+	cylz = GeometryBasics.Cylinder(Point(0,0,0.0), Point(0,0.0,scale), R)
+
+    setobject!(vis[axes_name][:x], cylx, MeshPhongMaterial(color=red_col))
+	head = Cone(Point(scale,0,0.0), Point(scale + head_l, 0.0, 0), head_w)
+	setobject!(vis[axes_name][:hx], head, MeshPhongMaterial(color=red_col))
+
+	setobject!(vis[axes_name][:y], cyly, MeshPhongMaterial(color=green_col))
+	head = Cone(Point(0,scale,0.0), Point(0, scale + head_l, 0.0), head_w)
+	setobject!(vis[axes_name][:hy], head, MeshPhongMaterial(color=green_col))
+
+	setobject!(vis[axes_name][:z], cylz, MeshPhongMaterial(color=blue_col))
+	head = Cone(Point(0,0.0,scale), Point(0, 0.0, scale + head_l), head_w)
+	setobject!(vis[axes_name][:hz], head, MeshPhongMaterial(color=blue_col))
+
+    settransform!(vis[axes_name],Translation(r) ∘ LinearMap(QuatRotation(q)))
+
+	return nothing
+end
+
+
+"""
+    set_robot(vis, mechanism, z; show_contact, name)
+
+    visualze mechanism configuration from maximal representation 
+
+    vis: Visualizer 
+    mechanism: Mechanism 
+    z: maximal state 
+    show_contact: flag to show contact locations on mechanism 
+    name: unique identifier
+"""
+function set_robot(vis::Visualizer, mechanism::Mechanism, z::Vector{T};
+    show_joint::Bool=false,
+    joint_radius=0.1,
+    show_contact::Bool=true, 
+    show_tf::Bool=true,
+    name::Symbol=:robot) where {T,N}
+
+    (length(z) == minimal_dimension(mechanism)) && (z = minimal_to_maximal(mechanism, z))
+    bodies = mechanism.bodies
+    origin = mechanism.origin
+
+    # Bodies and Contacts
+    for (id, body) in enumerate(bodies)
+        x, _, q, _ = unpack_maximal_state(z, id)
+        shape = body.shape
+        visshape = convert_shape(shape)
+        subvisshape = nothing
+        showshape = false
+        if visshape !== nothing
+            subvisshape = vis[name][:bodies][Symbol(body.name, "__id_$id")]
+            showshape = true
+        end
+
+        set_node!(x, q, id, shape, subvisshape, showshape)
+
+        if show_joint
+            for (jd, joint) in enumerate(mechanism.joints)
+                if joint.child_id == body.id
+                    # radius = joint_radius
+                    # joint_shape = Sphere(radius,
+                    #     position_offset=joint.translational.vertices[2],
+                    #     color=RGBA(0.0, 0.0, 1.0, 0.5))
+                    # # joint_shape = Triad(x, q)
+                    # visshape = convert_shape(joint_shape)
+                    # subvisshape = nothing
+                    # showshape = false
+                    # if visshape !== nothing
+                    #     subvisshape = vis[name][:joints][Symbol(joint.name, "__id_$(jd)")]
+                    #     showshape = true
+                    # end
+                    # set_node!(x, q, id, joint_shape, subvisshape, showshape)
+                    add_axes!(vis, joint.name, 1, 1, r=x, q=q)
+                end
+            end
+        end
+
+
+        if show_contact
+            for (jd, contact) in enumerate(mechanism.contacts)
+                if contact.parent_id == body.id
+                    radius = abs(contact.model.collision.contact_radius)
+                    (radius == 0.0) && (radius = 0.01)
+                    contact_shape = Sphere(radius,
+                        position_offset=(contact.model.collision.contact_origin),
+                        orientation_offset=one(Quaternion), color=RGBA(1.0, 0.0, 0.0, 0.5))
+                    visshape = convert_shape(contact_shape)
+                    subvisshape = nothing
+                    showshape = false
+                    if visshape !== nothing
+                        subvisshape = vis[name][:contacts][Symbol(contact.name, "__id_$(jd)")]
+                        showshape = true
+                    end
+                    set_node!(x, q, id, contact_shape, subvisshape, showshape)
+                end
+            end
+        end
+    end
+
+    # Origin
+    id = origin.id
+    shape = origin.shape
+    visshape = convert_shape(shape)
+    if visshape !== nothing
+        subvisshape = vis[name][:bodies][Symbol(:origin, "_id")]
+        shapetransform = transform(szeros(T,3), one(Quaternion{T}), shape)
+        settransform!(subvisshape, shapetransform)
+    end
+    return vis
+end
+
 function transform(x, q, shape)
     scale_transform = MeshCat.LinearMap(diagm(shape.scale))
     x_transform = MeshCat.Translation(x + vector_rotate(shape.position_offset, q))

@@ -162,20 +162,16 @@ function Capsule(r::Real, h::Real, m::Real;
         color=RGBA(0.75, 0.75, 0.75))
     T = promote_type(quateltype.((r, h, m, position_offset, orientation_offset))...)
 
-    volume_cylinder = π * h * r^2.0
-    volume_hemisphere = π * 4.0 / 3.0 * r^3.0 / 2.0
-    volume_total = volume_cylinder + 2 * volume_hemisphere
-    mass_cylinder = m * volume_cylinder / volume_total
-    mass_hemisphere = m * volume_hemisphere / volume_total
-    Ixx_cylinder = mass_cylinder * (1.0 / 12.0 * h^2.0 + 1.0 / 4.0 * r^2.0)
-    Izz_cylinder = mass_cylinder * 1.0 / 2.0 * r^2.0
-    Ixx_hemisphere = 83.0 / 320 * mass_hemisphere * r^2
-    Izz_hemisphere = mass_hemisphere * 2.0 / 5.0 * r^2 / 2.0
-    d = (3.0 / 8.0 * r + 0.5 * h)
-    Ixx = Ixx_cylinder + 2.0 * (Ixx_hemisphere + mass_hemisphere * d^2.0)
-    Izz = Izz_cylinder + Izz_hemisphere * 2.0
+        mass_cylinder = π * h * r^2.0
+        mass_hemisphere = π * 2.0 / 3.0 * r^3.0 
+        mass_total = mass_cylinder + 2 * mass_hemisphere
+        Ixx_cylinder = mass_cylinder * (1.0 / 12.0 * h^2.0 + 1.0 / 4.0 * r^2.0)
+        Ixx_hemisphere = 83.0 / 320 * mass_hemisphere * r^2
+        d = (3.0 / 8.0 * r + 0.5 * h)
+        Ixx = Ixx_cylinder + 2.0 * (Ixx_hemisphere + mass_hemisphere * d^2.0)
+        Izz = 0.5 * mass_cylinder * r^2.0 + mass_hemisphere * (2.0 * r^2.0) / 5.0 
 
-    J = diagm([Ixx; Ixx; Izz])
+        J = m * diagm([Ixx; Ixx; Izz])
 
     return Body(m, J; name=name, shape=Capsule(r, h; position_offset, orientation_offset, scale, color))
 end
