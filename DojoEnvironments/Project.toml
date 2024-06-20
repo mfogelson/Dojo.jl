@@ -1,14 +1,16 @@
 name = "DojoEnvironments"
 uuid = "8728bab7-e8ae-46fd-a1b6-a8c4d00f608e"
 authors = ["simonlc <simonlc@stanford.edu>", "thowell <thowell@stanford.edu>", "Jan Bruedigam <jan.bruedigam@tum.de>", "rejuvyesh <mail@rejuvyesh.com>"]
-version = "0.5.3"
+version = "0.6.1"
 
 [deps]
 Dojo = "ac60b53e-8d92-4c83-b960-e78698fa1916"
 JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 
 [compat]
 Dojo = "0.3.0, 0.4.0, 0.5.0, 0.6.0, 0.7.0"
-julia = "1.6, 1.9"
+PrecompileTools = "1.0, 1.2"
+julia = "1.6, 1.10"

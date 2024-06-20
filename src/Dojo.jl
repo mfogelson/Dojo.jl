@@ -3,6 +3,10 @@ module Dojo
 # constants
 global const REG = 1.0e-10::Float64
 
+global const X_AXIS = [1;0;0]
+global const Y_AXIS = [0;1;0]
+global const Z_AXIS = [0;0;1]
+
 #TODO: remove
 using FiniteDiff
 
@@ -27,6 +31,7 @@ using GraphBasedSystems
 using CoordinateTransformations
 
 using DocStringExtensions
+using PrecompileTools
 
 # Utilities
 include(joinpath("utilities", "methods.jl"))
@@ -144,6 +149,9 @@ include(joinpath("gradients", "finite_difference.jl"))
 include(joinpath("gradients", "state.jl"))
 include(joinpath("gradients", "data.jl"))
 include(joinpath("gradients", "utilities.jl"))
+
+# Precompilation
+include("precompile.jl")
 
 
 # Bodies
@@ -317,6 +325,9 @@ export
 
 # Utilities
 export
-    Storage
+    Storage,
+    X_AXIS,
+    Y_AXIS,
+    Z_AXIS
 
 end
