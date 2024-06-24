@@ -146,6 +146,22 @@ end
     return :(vcat($tra, $rot))
 end
 
+
+@generated function constraint_jacobian_configuration(mechanism, joint::JointConstraint, body::Body, attjac::Bool)
+    relative = :(body.id == joint.parent_id ? :parent : :child)
+    pbody = :(get_body(mechanism, joint.parent_id))
+    cbody = :(get_body(mechanism, joint.child_id))
+    tra = :(constraint_jacobian_configuration($relative,
+        joint.translational,
+        $pbody, $cbody,
+        joint.impulses[2][joint_impulse_index(joint, 1)], mechanism.timestep, attjac))
+    rot = :(constraint_jacobian_configuration($relative,
+        joint.rotational,
+        $pbody, $cbody,
+        joint.impulses[2][joint_impulse_index(joint, 2)], mechanism.timestep, attjac))
+    return :(vcat($tra, $rot))
+end
+
 # impulses
 function impulses!(mechanism, body::Body, joint::JointConstraint{T,Nλ}) where {T,Nλ}
     (Nλ > 0) && (body.state.d -= impulse_map(mechanism, joint, body) * joint.impulses[2])

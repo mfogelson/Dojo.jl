@@ -149,7 +149,7 @@
     <parent link="pair06_leg1_bar_j"/>
     <child link="pair06_leg1_bar_k"/>
     <origin rpy="0 0 0" xyz="0 0 0"/>
-    <limit effort="0" lower="-1.8" upper="-1.1" velocity="1000"/>
+    <!-- <limit effort="0" lower="-1.8" upper="-1.1" velocity="1000"/> -->
   </joint>
   <link name="pair06_leg1_bar_c">
     <inertial>
@@ -170,7 +170,7 @@
     <parent link="pair06_leg1_bar_k"/>
     <child link="pair06_leg1_bar_c"/>
     <origin rpy="0 0 0" xyz="0 0 0.619"/>
-    <limit effort="0" lower="1.57079632679" upper="3.14159265359" velocity="1000"/>
+    <!-- <limit effort="0" lower="1.57079632679" upper="3.14159265359" velocity="1000"/> -->
   </joint>
   <link name="pair06_leg1_bars_g_h_i">
     <inertial>
@@ -211,7 +211,7 @@
     <parent link="pair06_leg1_bar_k"/>
     <child link="pair06_leg1_bars_g_h_i"/>
     <origin rpy="0 0 0" xyz="0 0 0.619"/>
-    <limit effort="0" lower="-2" upper="-0.05" velocity="1000"/>
+    <!-- <limit effort="0" lower="-2" upper="-0.05" velocity="1000"/> -->
   </joint>
   <loop_joint name="pair06_leg1_loop_f_g" type="continuous">
     <axis xyz="0 1 0"/>
@@ -256,7 +256,7 @@
     <parent link="pair06_leg1_bar_j"/>
     <child link="pair06_leg1_bars_b_d_e"/>
     <origin rpy="0 0 0" xyz="0 0 0.50"/>
-    <limit effort="0" lower="-1.9" upper="-1.0" velocity="1000"/>
+    <!-- <limit effort="0" lower="-1.9" upper="-1.0" velocity="1000"/> -->
   </joint>
   <link name="pair06_leg1_bar_f">
     <inertial>
@@ -277,7 +277,7 @@
     <parent link="pair06_leg1_bars_b_d_e"/>
     <child link="pair06_leg1_bar_f"/>
     <origin rpy="0 0 0" xyz="0 0 0.558"/>
-    <limit effort="0" lower="-1.7" upper="0.4" velocity="1000"/>
+    <!-- <limit effort="0" lower="-1.7" upper="0.4" velocity="1000"/> -->
   </joint>
   <loop_joint name="pair06_leg1_loop_a_c" type="continuous">
     <axis xyz="0 1 0"/>
@@ -290,7 +290,7 @@
     <child link="pair06_leg1_bar_j"/>
     <origin rpy="0 0 0" xyz="0 0 0.15"/>
   </joint>
-  <!-- <link name="pair06_leg2_bar_j">
+  <link name="pair06_leg2_bar_j">
     <inertial>
       <origin rpy="0 0 0" xyz="0 0 0.25"/>
       <mass value="1"/>
@@ -323,7 +323,7 @@
     <parent link="pair06_leg2_bar_j"/>
     <child link="pair06_leg2_bar_k"/>
     <origin rpy="0 0 0" xyz="0 0 0"/>
-    <limit effort="0" lower="-1.8" upper="-1.1" velocity="1000"/>
+    <!--  <limit effort="0" lower="-1.8" upper="-1.1" velocity="1000"/> -->
   </joint>
   <link name="pair06_leg2_bar_c">
     <inertial>
@@ -344,7 +344,7 @@
     <parent link="pair06_leg2_bar_k"/>
     <child link="pair06_leg2_bar_c"/>
     <origin rpy="0 0 0" xyz="0 0 0.619"/>
-    <limit effort="0" lower="1.57079632679" upper="3.14159265359" velocity="1000"/>
+    <!--  <limit effort="0" lower="1.57079632679" upper="3.14159265359" velocity="1000"/> -->
   </joint>
   <link name="pair06_leg2_bars_g_h_i">
     <inertial>
@@ -385,7 +385,7 @@
     <parent link="pair06_leg2_bar_k"/>
     <child link="pair06_leg2_bars_g_h_i"/>
     <origin rpy="0 0 0" xyz="0 0 0.619"/>
-    <limit effort="0" lower="-2" upper="-0.05" velocity="1000"/>
+    <!--  <limit effort="0" lower="-2" upper="-0.05" velocity="1000"/> -->
   </joint>
   <loop_joint name="pair06_leg2_loop_f_g" type="continuous">
     <axis xyz="0 1 0"/>
@@ -430,7 +430,7 @@
     <parent link="pair06_leg2_bar_j"/>
     <child link="pair06_leg2_bars_b_d_e"/>
     <origin rpy="0 0 0" xyz="0 0 0.50"/>
-    <limit effort="0" lower="-1.9" upper="-1.0" velocity="1000"/>
+    <!--  <limit effort="0" lower="-1.9" upper="-1.0" velocity="1000"/> -->
   </joint>
   <link name="pair06_leg2_bar_f">
     <inertial>
@@ -451,7 +451,7 @@
     <parent link="pair06_leg2_bars_b_d_e"/>
     <child link="pair06_leg2_bar_f"/>
     <origin rpy="0 0 0" xyz="0 0 0.558"/>
-    <limit effort="0" lower="-1.7" upper="0.4" velocity="1000"/>
+    <!--  <limit effort="0" lower="-1.7" upper="0.4" velocity="1000"/> -->
   </joint>
   <loop_joint name="pair06_leg2_loop_a_c" type="continuous">
     <axis xyz="0 1 0"/>
@@ -463,7 +463,7 @@
     <parent link="pair06_bar_m"/>
     <child link="pair06_leg2_bar_j"/>
     <origin rpy="0 0 3.14159265359" xyz="0 0 0.15"/>
-  </joint> -->
+  </joint>
   <joint name="pair06_joint_crossbar_l" type="fixed">
     <axis xyz="0 1 0"/>
     <parent link="crossbar"/>
@@ -476,9 +476,9 @@
     <child link="pair06_bar_m"/>
     <origin rpy="0 0 0" xyz="0 0.5 0"/>
   </joint>
-  <!-- <loop_joint name="pair06_loop_crank_l" type="continuous">
+  <loop_joint name="pair06_loop_crank_l" type="continuous">
     <axis xyz="0 1 0"/>
     <link1 link="crank_axle" rpy="0 0 0" xyz="0 0.5 0"/>
     <link2 link="pair06_bar_l" rpy="0 0 0" xyz="0 0 0.078"/>
-  </loop_joint> -->
+  </loop_joint>
 </robot>

@@ -18,6 +18,13 @@ function joint_constraint_jacobian_configuration(relative::Symbol, joint::Joint{
     return constraint_mask(joint) * [X Q]
 end
 
+function joint_constraint_jacobian_configuration(relative::Symbol, joint::Joint{T},
+    xa::AbstractVector, qa::Quaternion,
+    xb::AbstractVector, qb::Quaternion, η, attjac) where {T}
+    X, Q = displacement_jacobian_configuration(relative, joint, xa, qa, xb, qb, attjac=attjac)
+    return constraint_mask(joint) * [X Q]
+end
+
 # constraints
 function constraint(joint::Joint{T,Nλ,0},
     xa::AbstractVector, qa::Quaternion,
@@ -46,10 +53,20 @@ constraint_jacobian_configuration(relative::Symbol, joint::Joint, pbody::Node, c
     constraint_jacobian_configuration(relative, joint, next_configuration(pbody.state, timestep)...,
 	next_configuration(cbody.state, timestep)..., λ)
 
+    constraint_jacobian_configuration(relative::Symbol, joint::Joint, pbody::Node, cbody::Node, λ, timestep, attjac) =
+    constraint_jacobian_configuration(relative, joint, next_configuration(pbody.state, timestep)...,
+	next_configuration(cbody.state, timestep)..., λ, attjac)
+
 function constraint_jacobian_configuration(relative::Symbol, joint::Joint{T,Nλ,0},
         xa::AbstractVector, qa::Quaternion,
         xb::AbstractVector, qb::Quaternion, η) where {T,Nλ}
     joint_constraint_jacobian_configuration(relative, joint, xa, qa, xb, qb, η)
+end
+
+function constraint_jacobian_configuration(relative::Symbol, joint::Joint{T,Nλ,0},
+    xa::AbstractVector, qa::Quaternion,
+    xb::AbstractVector, qb::Quaternion, η, attjac) where {T,Nλ}
+joint_constraint_jacobian_configuration(relative, joint, xa, qa, xb, qb, η, attjac)
 end
 
 # masks
