@@ -68,6 +68,39 @@ function constraintstep!(mechanism::Mechanism{T}, freebodies::Vector{Body{T}}; r
     return 
 end
 
+function initialize_constraint_jacobian(mechanism, freebodies, attjac=true)
+    # Getting the degrees of freedom for each joint
+    joint_dof = [Base.unwrap_unionall(typeof(joint)).parameters[2] for joint in mechanism.joints]
+
+    body_dof = attjac ? 6 : 7
+    # Creating index ranges for the joints
+    joint_idx = Dojo.index_ranges(joint_dof)
+
+    # Calculating total number of constraints and bodies
+    num_constraints = sum(joint_dof)
+    num_bodies = body_dof*length(freebodies)
+
+    # Creating index ranges for the bodies
+    body_idx = Dojo.index_ranges([body_dof for _ in freebodies])
+
+    # Creating the constraint matrix
+    con_jac = zeros(num_constraints, num_bodies)
+
+    return con_jac, joint_idx, body_idx
+end
+
+function update_constraint_jacobian!(con_jac, mechanism, freebodies, joint_idx, body_idx, attjac=true)
+    # Filling the constraint Jacobian
+    for (i,(joint, j_idx)) in enumerate(zip(mechanism.joints, joint_idx))
+        for (j,(body, b_idx)) in enumerate(zip(freebodies, body_idx))
+            if body.id == joint.parent_id
+                con_jac[j_idx, b_idx] = Dojo.constraint_jacobian_configuration(mechanism, joint, body, attjac)
+            elseif body.id == joint.child_id
+                con_jac[j_idx, b_idx] = Dojo.constraint_jacobian_configuration(mechanism, joint, body, attjac)
+            end
+        end
+    end
+end
 
 
 function constraintstep_qr!(mechanism::Mechanism{T}, freebodies::Vector{Body{T}}; regularization=1e-6) where T
@@ -126,7 +159,7 @@ function constraintstep_qr!(mechanism::Mechanism{T}, freebodies::Vector{Body{T}}
     A = (con_jac+I*regularization)*attjac # con_jac'*con_jac+I(num_bodies)*regularization
     b = res
     #F = svd(collect(A), full=true)
-    F = svd(A, full=true, alg=LinearAlgebra.QRIteration())
+    F = svd(collect(A), full=true, alg=LinearAlgebra.QRIteration())
     rank = sum(F.S .> 1e-3)
     # println(rank)
     V1 = @view F.V[:,1:rank]
@@ -165,9 +198,10 @@ max_violations(mechanism) = [joint_residual_violation(mechanism, joint) for join
 
 residual(mechanism) = Vector(vcat([constraint(mechanism, joint) for joint in mechanism.joints]...))
 
-loss(mechanism) = residual(mechanism)'*I*residual(mechanism)
+loss(mechanism) = maximum(abs.(residual(mechanism))) #residual(mechanism)'*I*residual(mechanism)
 
-function initialize_constraints!(mechanism::Mechanism{T}; fixedids = Int64[], freeids = Int64[], ε = 1e-5, newtonIter = 100, lineIter = 10, regularization = 1e-6, debug=false) where T
+
+function get_free_bodies(mechanism; fixedids = Int64[], freeids = Int64[],)
     # Initialize the array of free bodies
     freebodies = Body[]
 
@@ -175,14 +209,21 @@ function initialize_constraints!(mechanism::Mechanism{T}; fixedids = Int64[], fr
     if !isempty(fixedids) && !isempty(freeids)
         error("Specify either free or fixed bodies, not both.")
     elseif !isempty(fixedids)  # Only fixedids are specified
-        freeids = setdiff(getid.(mechanism.bodies),fixedids)
+        freeids = setdiff(Dojo.getid.(mechanism.bodies),fixedids)
         freebodies = [get_body(mechanism, id) for id in freeids]
     elseif !isempty(freeids)  # Only freeids are specified
         freebodies = [get_body(mechanism, id) for id in freeids]
     else  # Neither are specified, consider all bodies free
-        freeids = getid.(mechanism.bodies)
+        freeids = Dojo.getid.(mechanism.bodies)
         freebodies = [get_body(mechanism, id) for id in freeids]
     end
+
+    return freebodies
+end
+
+function initialize_constraints!(mechanism::Mechanism{T}; fixedids = Int64[], freeids = Int64[], ε = 1e-5, newtonIter = 100, lineIter = 10, regularization = 1e-6, debug=false) where T
+    # Initialize the array of free bodies
+    freebodies = get_free_bodies(mechanism, fixedids=fixedids, freeids=freeids)
 
     # Get the initial maximum violation of constraints
     norm0 = loss(mechanism) #maximum(violations(mechanism))
