@@ -17,6 +17,7 @@
 mutable struct JointConstraint{T,N,Nc,TJ,RJ} <: Constraint{T,N}
     # ID
     id::Int64
+    type::Symbol
     name::Symbol
 
     # joint constraints
@@ -39,7 +40,7 @@ mutable struct JointConstraint{T,N,Nc,TJ,RJ} <: Constraint{T,N}
 
     function JointConstraint(data;
         name::Symbol=Symbol("joint_" * randstring(4)))
-
+        type = data[3]
         @assert data[1][2] == data[2][2] # check parent ids
         @assert data[1][3] == data[2][3] # check child ids
 
@@ -60,7 +61,7 @@ mutable struct JointConstraint{T,N,Nc,TJ,RJ} <: Constraint{T,N}
 
         minimal_index = Vector{Int64}[]
         N = 0
-        for joint_data in data
+        for joint_data in data[1:2]
             joint = joint_data[1]
 
             # set spring & damper on
@@ -81,7 +82,7 @@ mutable struct JointConstraint{T,N,Nc,TJ,RJ} <: Constraint{T,N}
         Nc = 2
         impulses = [zeros(T, N) for i=1:2]
 
-        return new{T,N,Nc,typeof(translational),typeof(rotational)}(getGlobalID(), name, translational, rotational, spring, damper, parent_id, child_id, minimal_index, impulses)
+        return new{T,N,Nc,typeof(translational),typeof(rotational)}(getGlobalID(), type, name, translational, rotational, spring, damper, parent_id, child_id, minimal_index, impulses)
     end
 end
 
@@ -89,6 +90,7 @@ function Base.show(io::IO, mime::MIME{Symbol("text/plain")}, constraint::JointCo
     summary(io, constraint)
     println(io, "")
     println(io, "id:            "*string(constraint.id))
+    println(io, "type:          "*string(constraint.type))
     println(io, "name:          "*string(constraint.name))
     println(io, "spring:        "*string(constraint.spring))
     println(io, "damper:        "*string(constraint.damper))
@@ -116,7 +118,7 @@ function constraint(mechanism, joint::JointConstraint)
     cbody = get_body(mechanism, joint.child_id)
     tra = constraint(joint.translational, pbody, cbody, joint.impulses[2][joint_impulse_index(joint,1)], mechanism.μ, mechanism.timestep)
     rot = constraint(joint.rotational, pbody, cbody, joint.impulses[2][joint_impulse_index(joint,2)], mechanism.μ, mechanism.timestep)
-    return svcat(tra, rot)
+    return vcat(tra, Vector(rot))
 end
 
 # # constraints Jacobians

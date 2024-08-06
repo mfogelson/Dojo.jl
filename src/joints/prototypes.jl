@@ -11,7 +11,7 @@ Fixed(pbody::Node{T}, cbody::Node{T};
         parent_vertex, 
         child_vertex),
     Rotational{T,3}(pbody, cbody; 
-        orientation_offset)
+        orientation_offset), :Fixed
 
 """
     Prismatic{T} <: JointConstraint{T}
@@ -37,7 +37,7 @@ Prismatic(pbody::Node{T}, cbody::Node{T}, axis;
     Rotational{T,3}(pbody, cbody; 
         orientation_offset, 
         spring, 
-        damper)
+        damper), :Prismatic
 
 """
     Planar{T} <: JointConstraint{T} 
@@ -63,7 +63,7 @@ Planar(pbody::Node{T}, cbody::Node{T}, axis;
     Rotational{T,3}(pbody, cbody; 
         orientation_offset, 
         spring, 
-        damper)
+        damper), :Planar
 
 """
     FixedOrientation{T} <: JointConstraint{T} 
@@ -84,7 +84,7 @@ FixedOrientation(pbody::Node{T}, cbody::Node{T};
     Rotational{T,3}(pbody, cbody; 
         orientation_offset, 
         spring, 
-        damper)
+        damper), :FixedOrientation
 
 """
     Revolute{T} <: JointConstraint{T} 
@@ -112,7 +112,7 @@ Revolute(pbody::Node{T}, cbody::Node{T}, axis;
         damper,
         spring_offset=rot_spring_offset, 
         joint_limits=rot_joint_limits, 
-        spring_type=spring_type)
+        spring_type=spring_type), :Revolute
 
 """
     Cylindrical{T} <: JointConstraint{T} 
@@ -145,7 +145,7 @@ Cylindrical(pbody::Node{T}, cbody::Node{T}, axis;
         damper,
         spring_offset=rot_spring_offset, 
         joint_limits=rot_joint_limits, 
-        spring_type=spring_type)
+        spring_type=spring_type), :Cylindrical
 
 """
     PlanarAxis{T} <: JointConstraint{T} 
@@ -178,7 +178,7 @@ PlanarAxis(pbody::Node{T}, cbody::Node{T}, axis;
         damper,
         spring_offset=rot_spring_offset, 
         joint_limits=rot_joint_limits, 
-        spring_type=spring_type)
+        spring_type=spring_type), :PlanarAxis
 
 """
     FreeRevolute{T} <: JointConstraint{T} 
@@ -208,7 +208,7 @@ FreeRevolute(pbody::Node{T}, cbody::Node{T}, axis;
         damper,
         spring_offset=rot_spring_offset, 
         joint_limits=rot_joint_limits, 
-        spring_type=spring_type)
+        spring_type=spring_type), :FreeRevolute
 
 """
     Orbital{T} <: JointConstraint{T} 
@@ -237,7 +237,7 @@ Orbital(pbody::Node{T}, cbody::Node{T}, axis;
         damper,
         spring_offset=rot_spring_offset, 
         joint_limits=rot_joint_limits, 
-        spring_type=spring_type)
+        spring_type=spring_type), :Orbital
 
 """
     PrismaticOrbital{T} <: JointConstraint{T} 
@@ -270,7 +270,7 @@ PrismaticOrbital(pbody::Node{T}, cbody::Node{T}, axis;
         damper,
         spring_offset=rot_spring_offset, 
         joint_limits=rot_joint_limits, 
-        spring_type=spring_type)
+        spring_type=spring_type), :PrismaticOrbital
 
 """
     PlanarOrbital{T} <: JointConstraint{T} 
@@ -303,7 +303,7 @@ PlanarOrbital(pbody::Node{T}, cbody::Node{T}, axis;
         damper,
         spring_offset=rot_spring_offset, 
         joint_limits=rot_joint_limits, 
-        spring_type=spring_type)
+        spring_type=spring_type), :PlanarOrbital
 
 """
     FreeOrbital{T} <: JointConstraint{T} 
@@ -333,7 +333,7 @@ FreeOrbital(pbody::Node{T}, cbody::Node{T}, axis;
         damper,
         spring_offset=rot_spring_offset, 
         joint_limits=rot_joint_limits, 
-        spring_type=spring_type)
+        spring_type=spring_type), :FreeOrbital
 
 """
     Spherical{T} <: JointConstraint{T} 
@@ -360,7 +360,7 @@ Spherical(pbody::Node{T}, cbody::Node{T};
         damper,
         spring_offset=rot_spring_offset, 
         joint_limits=rot_joint_limits, 
-        spring_type=spring_type)
+        spring_type=spring_type), :Spherical
 
 """
 MitchJoint{T} <: JointConstraint{T} 
@@ -416,7 +416,7 @@ CylindricalFree(pbody::Node{T}, cbody::Node{T}, axis;
         damper,
         spring_offset=rot_spring_offset, 
         joint_limits=rot_joint_limits, 
-        spring_type=spring_type)
+        spring_type=spring_type), :CylindricalFree
 
 """
     PlanarFree{T} <: JointConstraint{T} 
@@ -446,7 +446,7 @@ PlanarFree(pbody::Node{T}, cbody::Node{T}, axis;
         damper,
         spring_offset=rot_spring_offset, 
         joint_limits=rot_joint_limits, 
-        spring_type=spring_type)
+        spring_type=spring_type), :PlanarFree
 
 """
     Floating{T} <: JointConstraint{T} 
@@ -471,7 +471,7 @@ Floating(pbody::Node{T}, cbody::Node{T};
         damper,
         spring_offset=rot_spring_offset, 
         joint_limits=rot_joint_limits, 
-        spring_type=spring_type)
+        spring_type=spring_type), :Floating
 
 function Prototype(joint_type::Symbol, pbody::Node{T}, cbody::Node{T}, axis; 
         parent_vertex=szeros(T, 3), 
