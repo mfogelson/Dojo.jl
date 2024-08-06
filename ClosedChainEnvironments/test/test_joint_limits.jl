@@ -1,3 +1,6 @@
+using Pkg
+Pkg.activate(".")
+Pkg.instantiate()
 using Dojo
 
 # ### Parameters
@@ -26,15 +29,36 @@ function get_mech()
     # joints[1] = joint1
     push!(joints, joint1)
 
-    mechanism = Mechanism(origin, bodies, joints, timestep=timestep, gravity=[0.0, 0.0, -0.021])
+    mechanism = Mechanism(origin, bodies, joints, timestep=timestep, gravity=[0.0, 0.0, -10.0])
 end
 
 mechanism = get_mech()
-Dojo.set_maximal_configurations!(mechanism.bodies[1], x=[0, 0, 0.001], q=Dojo.RotY(0))
+Dojo.set_maximal_configurations!(mechanism.bodies[1], x=[0, 0, 0.01], q=Dojo.RotY(0))
 
-opts = SolverOptions(verbose=true, rtol=1e-3, btol=1e-3, reg=1e-3, max_iter=20)
+opts = SolverOptions(verbose=true, rtol=1e-6, btol=1e-6, reg=0.0, max_iter=100)
 tf = mechanism.timestep*1
 storage = Dojo.simulate!(mechanism, tf, record=true, opts=opts)
 
 vis = Visualizer()
 visualize(mechanism; vis=vis, visualize_floor=false, show_frame=false, show_joint=true, joint_radius=0.1)
+
+# test controller 
+function control!(mechanism::Mechanism, k::Int64)
+    joint = mechanism.joints[1]
+
+    output = get_minimal_state(mechanism)
+    des_value = pi/4 
+
+    error = des_value - output[5]
+    error_dot = 0.0# -output[end-1]
+    kp = 1.0
+    kd = 0.1
+    τ = kp*error + kd*error_dot
+    println("τ: ", τ)
+    set_input!(joint, [0.0, 0.0, 0.0, 0.0, τ, 0.0])
+end
+
+tf = mechanism.timestep*100
+storage = Dojo.simulate!(mechanism, tf, control!; record=true, opts=opts, abort_upon_failure=true)
+vis = Visualizer()
+visualize(mechanism, storage; vis=vis, visualize_floor=false, show_frame=true, show_joint=true, joint_radius=0.1)
