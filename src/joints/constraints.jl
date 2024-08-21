@@ -118,7 +118,7 @@ function constraint(mechanism, joint::JointConstraint)
     cbody = get_body(mechanism, joint.child_id)
     tra = constraint(joint.translational, pbody, cbody, joint.impulses[2][joint_impulse_index(joint,1)], mechanism.μ, mechanism.timestep)
     rot = constraint(joint.rotational, pbody, cbody, joint.impulses[2][joint_impulse_index(joint,2)], mechanism.μ, mechanism.timestep)
-    return vcat(tra, Vector(rot))
+    return svcat(tra, rot)
 end
 
 # # constraints Jacobians
