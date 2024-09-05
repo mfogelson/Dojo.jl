@@ -86,10 +86,25 @@ function visualize(mechanism::Mechanism, storage::Storage{T,N};
         if show_contact
             for (jd, contact) in enumerate(mechanism.contacts)
                 if contact.parent_id == body.id
-                    radius = abs(contact.model.collision.contact_radius)
+                    if hasfield(typeof(contact.model.collision), :contact_radius)
+                        radius = abs(contact.model.collision.contact_radius)
+                    elseif hasfield(typeof(contact.model.collision), :radius_sphere)
+                        radius = abs(contact.model.collision.radius_sphere)
+                    else
+                        radius = 0.0
+                    end
                     (radius == 0.0) && (radius = 0.01)
+
+                    if hasfield(typeof(contact.model.collision), :contact_origin)
+                        contact_origin = contact.model.collision.contact_origin
+                    elseif hasfield(typeof(contact.model.collision), :origin_sphere)
+                        contact_origin = contact.model.collision.origin_sphere
+                    else
+                        contact_origin = zeros(3)
+                    end
+
                     contact_shape = Sphere(radius,
-                        position_offset=contact.model.collision.contact_origin, #TODO: generalize for collision checking
+                        position_offset=contact_origin, #TODO: generalize for collision checking
                         orientation_offset=one(Quaternion), 
                         color=RGBA(1.0, 0.0, 0.0, 0.5))
                     visshape = convert_shape(contact_shape)
@@ -242,10 +257,25 @@ function build_robot(mechanism::Mechanism;
             println("here")
             for (jd, contact) in enumerate(mechanism.contacts)
                 if contact.parent_id == body.id
-                    radius = abs(contact.model.collision.contact_radius)
+                    if hasfield(typeof(contact.model.collision), :contact_radius)
+                        radius = abs(contact.model.collision.contact_radius)
+                    elseif hasfield(typeof(contact.model.collision), :radius_sphere)
+                        radius = abs(contact.model.collision.radius_sphere)
+                    else
+                        radius = 0.0
+                    end
+
                     (radius == 0.0) && (radius = 0.01)
+                    if hasfield(typeof(contact.model.collision), :contact_origin)
+                        contact_origin = contact.model.collision.contact_origin
+                    elseif hasfield(typeof(contact.model.collision), :origin_sphere)
+                        contact_origin = contact.model.collision.origin_sphere
+                    else
+                        contact_origin = zeros(3)
+                    end
+
                     contact_shape = Sphere(radius,
-                        position_offset=(contact.model.collision.contact_origin),
+                        position_offset= contact_origin,
                         orientation_offset=one(Quaternion), color=RGBA(1.0, 0.0, 0.0, 0.5))
                     visshape = convert_shape(contact_shape)
                     subvisshape = nothing

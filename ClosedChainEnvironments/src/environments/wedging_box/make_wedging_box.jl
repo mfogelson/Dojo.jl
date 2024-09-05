@@ -16,13 +16,13 @@ box = Box(edge_length, edge_length, 2 * edge_length, mass; color = RGBA(0.8, 0.0
 # Create the bottom and top planes (represented as thin boxes)
 plane_thickness = 0.001 # 1 mm thickness for planes
 plane_width = 0.2 # 20 cm width for planes (adjust as needed)
-bottom_plane = Box(plane_width, plane_width, plane_thickness, 1.0; color = RGBA(0.5, 0.5, 0.5, 0.5), name = :bottom_plane)
-top_plane = Box(plane_width, plane_width, plane_thickness, 1.0; color = RGBA(0.5, 0.5, 0.5, 0.5), name = :top_plane)
+bottom_plane = Box(plane_width, plane_width, plane_thickness, 1.0; color = RGBA(0.5, 0.8, 0.5, 1.0), name = :bottom_plane)
+top_plane = Box(plane_width, plane_width, plane_thickness, 1.0; color = RGBA(0.5, 0.5, 0.8, 1.0), name = :top_plane)
 
 # Create joint constraints
-box_joint = JointConstraint(Floating(origin, box), name=:box_floating)
-bottom_plane_joint = JointConstraint(Fixed(origin, bottom_plane, parent_vertex=[0, 0, -0.025]), name=:bottom_plane_fixed)
-top_plane_joint = JointConstraint(Fixed(origin, top_plane, parent_vertex=[0, 0, 0.025]), name=:top_plane_fixed)
+box_joint = JointConstraint(Revolute(origin, box, [0, 1, 0]), name=:box_floating)
+bottom_plane_joint = JointConstraint(Fixed(origin, bottom_plane, parent_vertex=[0, 0, -0.0105-plane_thickness/2]), name=:bottom_plane_fixed)
+top_plane_joint = JointConstraint(Fixed(origin, top_plane, parent_vertex=[0, 0, 0.0105+plane_thickness/2]), name=:top_plane_fixed)
 
 # Create the mechanism
 mechanism = Mechanism(origin, [box, bottom_plane, top_plane], [box_joint, bottom_plane_joint, top_plane_joint];
@@ -35,47 +35,73 @@ dampers = 0
 # set_dampers!(mechanism.joints, dampers)
 
 # Create contact models
-sphere_radius = 0.0
-box_bottom_contact_model = SphereBoxCollision{Float64,2,3,6}(
-    [0.0, 0.0, -edge_length],  # origin_sphere (bottom of the box)
-    plane_width, 
-    plane_width, 
-    plane_thickness,
-    sphere_radius
-)
+# Define contact points (8 corners of the box)
+contact_origins = [
+    [edge_length/2; edge_length/2; -edge_length],
+    [edge_length/2; -edge_length/2; -edge_length],
+    [-edge_length/2; edge_length/2; -edge_length],
+    [-edge_length/2; -edge_length/2; -edge_length],
+    [edge_length/2; edge_length/2; edge_length],
+    [edge_length/2; -edge_length/2; edge_length],
+    [-edge_length/2; edge_length/2; edge_length],
+    [-edge_length/2; -edge_length/2; edge_length]
+]
 
-box_top_contact_model = SphereBoxCollision{Float64,2,3,6}(
-    [0.0, 0.0, edge_length],  # origin_sphere (top of the box)
-    [-plane_width/2, -plane_width/2, -plane_thickness/2],  # origin_box_a (corner of top plane)
-    [plane_width/2, plane_width/2, -plane_thickness/2],  # origin_box_b (opposite corner of top plane)
-    sphere_radius
-)
 
-# Create contact constraints
-box_bottom_contact = ContactConstraint(
-    (box_bottom_contact_model, box.id, bottom_plane.id),
-    name = :box_bottom_contact
-)
+sphere_radius = 0.0001
+contacts = ContactConstraint{Float64}[]
+for (i, contact_origin) in enumerate(contact_origins)
+    box_contact_model1 = NonlinearContact{Float64,8}(friction_coefficient, Matrix{Float64}(I, 2,2), SphereBoxCollision{Float64,2,3,6}(
+        contact_origin,  # origin_sphere (bottom of the box)
+        plane_width, 
+        plane_width, 
+        plane_thickness,
+        sphere_radius    
+        ))
+    
+    box_contact_model2 = NonlinearContact{Float64,8}(friction_coefficient, Matrix{Float64}(I, 2,2), SphereBoxCollision{Float64,2,3,6}(
+        contact_origin,  # origin_sphere (bottom of the box)
+        plane_width, 
+        plane_width, 
+        plane_thickness,
+        sphere_radius    
+        ))
 
-box_top_contact = ContactConstraint(
-    (box_top_contact_model, box.id, top_plane.id),
-    name = :box_top_contact
-)
+
+    # Create contact constraints
+    box_bottom_contact = ContactConstraint(
+        (box_contact_model1, box.id, bottom_plane.id),
+        name = Symbol("box_bottom_contact$i")
+    )
+
+    box_top_contact = ContactConstraint(
+        (box_contact_model2, box.id, top_plane.id),
+        name = Symbol("box_top_contact$i")
+    )
+
+    contacts = [contacts; box_bottom_contact; box_top_contact]
+end
+
 
 # Update the mechanism with contacts
-mechanism = Mechanism(mechanism.origin, mechanism.bodies, mechanism.joints, [box_bottom_contact, box_top_contact];
+mechanism = Mechanism(mechanism.origin, mechanism.bodies, mechanism.joints, contacts;
                       gravity = mechanism.gravity, timestep = mechanism.timestep, input_scaling = mechanism.input_scaling)
 
 # Set initial state
 z0 = get_maximal_state(mechanism)
-z0[3] = edge_length + 0.002 # Start 2 mm above the bottom plane
-set_maximal_state!(mechanism, z0)
+# z0[3] = edge_length + 0.002 # Start 2 mm above the bottom plane
+# set_maximal_state!(mechanism, z0)
 
 # Set positions for planes
-set_maximal_state!(mechanism, bottom_plane, x=[0.0, 0.0, 0.0])
-set_maximal_state!(mechanism, top_plane, x=[0.0, 0.0, 0.102]) # 102 mm above the bottom plane
+set_maximal_configurations!(get_body(mechanism, :bottom_plane), x=[0.0, 0.0, -0.0105-plane_thickness/2])
+set_maximal_configurations!(get_body(mechanism, :top_plane), x=[0.0, 0.0, 0.0105+plane_thickness/2]) # 102 mm above the bottom plane
+
+vis = Visualizer()
+delete!(vis)
+visualize(mechanism, vis=vis, visualize_floor=false, show_contact=false, joint_radius=0.0)
 
 # Controller function to apply the external force
+max_singular_values = []
 function controller!(mechanism, k)
     for contact in mechanism.contacts
         model = contact.model
@@ -83,23 +109,45 @@ function controller!(mechanism, k)
         xp, vp, qp, ωp = Dojo.next_configuration_velocity(pbody.state, mechanism.timestep)
         cbody = get_body(mechanism, contact.child_id)
         xc, vc, qc, ωc = Dojo.next_configuration_velocity(cbody.state, mechanism.timestep)
-        d = distance(model, xp, qp, xc, qc)
+        d = distance(model.collision, xp, qp, xc, qc)
         if d ≈ 0.0
             println("Contact at $(contact.name)!")
         end
     end
-    
-    if k == 1
-        println("Applying external force")
-        add_external_force!(mechanism.bodies[1], force=[100*external_force, 0.0, 0.0], vertex=[0.0, 0.0, edge_length])
-    end
+    # if k == 1
+        # println("Applying external force")
+    add_external_force!(mechanism.bodies[1], force=[external_force, 0.0, 0.0], vertex=[0.0, 0.0, edge_length])
+    # end
 end
 
 # Simulate
 opts = SolverOptions(verbose=false, rtol=1e-8, btol=1e-8, reg=1e-6, max_iter=100)
-storage = simulate!(mechanism, 100*mechanism.timestep, controller!, record = true, opts = opts)
+storage = simulate!(mechanism, 0.2, controller!, record = true, opts = opts)
 
 # Visualize
-vis = Visualizer()
+# vis = Visualizer()
 delete!(vis)
-visualize(mechanism, storage, vis=vis, show_contact=true, joint_radius=0.0)
+visualize(mechanism, storage, vis=vis,visualize_floor=false, show_contact=true, joint_radius=0.0)
+
+for contact in mechanism.contacts
+    model = contact.model
+    pbody = get_body(mechanism, contact.parent_id)
+    xp, vp, qp, ωp = Dojo.next_configuration_velocity(pbody.state, mechanism.timestep)
+    cbody = get_body(mechanism, contact.child_id)
+    xc, vc, qc, ωc = Dojo.next_configuration_velocity(cbody.state, mechanism.timestep)
+    d = distance(model.collision, xp, qp, xc, qc)
+    # println(d)
+    if d < 1e-4
+        println("Contact at $(contact.name)!")
+        println(maximum(contact.impulses[1]))
+    end
+end
+
+
+Dojo.pull_residual!(mechanism)               # store the residual inside mechanism.residual_entries
+Dojo.ldu_factorization!(mechanism.system)    # factorize system, modifies the matrix in place
+A = full_matrix(mechanism.system)
+F = svd(A, full=true, alg=LinearAlgebra.QRIteration())
+rank = sum(F.S .> 1e-6)
+println("rank: ", rank)
+println("min eigen", maximum(F.S))
