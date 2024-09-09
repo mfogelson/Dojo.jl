@@ -182,7 +182,8 @@ end
      
 
 # Load the JSON file
-filename = "/Users/mitchfogelson/Library/CloudStorage/Box-Box/00_Mitch Fogelson/00_Research/00_Niac_Space_Structures/09_Closed_Loop_Simulation/Experiments/2024_08_01_PET_unit/PET/PET_unit v60_link_dict.json"
+filename = "/Users/mitchfogelson/Library/CloudStorage/Box-Box/00_Mitch Fogelson/00_Research/00_Niac_Space_Structures/09_Closed_Loop_Simulation/Experiments/2024_09_08_bennett_linkage/Bennett Linkage v9_link_dict.json"
+# filename = "/Users/mitchfogelson/Library/CloudStorage/Box-Box/00_Mitch Fogelson/00_Research/00_Niac_Space_Structures/09_Closed_Loop_Simulation/Experiments/2024_08_01_PET_unit/PET/PET_unit v60_link_dict.json"
 # filename = "/Users/mitchfogelson/Library/CloudStorage/Box-Box/00_Mitch Fogelson/00_Research/00_Niac_Space_Structures/09_Closed_Loop_Simulation/Experiments/2024_07_24_jansen/Jansen Mechanism v7 v7_link_dict.json" #/Users/mitchfogelson/Library/CloudStorage/Box-Box/00_Mitch Fogelson/00_Research/00_Niac_Space_Structures/09_Closed_Loop_Simulation/Experiments/2024_07_24_pet/folding_scissor_assembly2 v5_link_dict.json" #"/Users/mitchfogelson/Library/CloudStorage/Box-Box/00_Mitch Fogelson/00_Research/00_Niac_Space_Structures/09_Closed_Loop_Simulation/Experiments/Jansen Mechanism v7 v6_link_dict.json" #"/Users/mitchfogelson/Library/CloudStorage/Box-Box/00_Mitch Fogelson/00_Research/00_Niac_Space_Structures/09_Closed_Loop_Simulation/test_body v5_link_dict.json" #"/Users/mitchfogelson/Library/CloudStorage/Box-Box/00_Mitch Fogelson/00_Research/00_Niac_Space_Structures/09_Closed_Loop_Simulation/fusion_to_dojo_test_description/robot_config.json" #"/Users/mitchfogelson/Jansen_description/robot_config.json" #"/Users/mitchfogelson/Projects/Research_Projects/fusion2urdf/Test/orientaiton_description/robot_config.json"
 
 # translation_offset = [0.0, 0.0, 4.9]
@@ -190,9 +191,10 @@ filename = "/Users/mitchfogelson/Library/CloudStorage/Box-Box/00_Mitch Fogelson/
 mechanism, contact = parse_json(filename)#, translation_offset, rotation_offset, true);
 
 mechanism.origin
-fixed_body = get_body(mechanism, Symbol("Long_scissor_unit v5:1+Long_link_member v3:1")) #Symbol("Component8:1"))
+fixed_body = get_body(mechanism, Symbol("link2_new v23:1"))
+# fixed_body = get_body(mechanism, Symbol("Long_scissor_unit v5:1+Long_link_member v3:1")) #Symbol("Component8:1"))
 joint = JointConstraint(Fixed(mechanism.origin, fixed_body, parent_vertex=fixed_body.state.x2, orientation_offset=fixed_body.state.q2), name=:fixed)
-joints = [joint; mechanism.joints]
+joints = [joint; mechanism.joints[]
 mechanism = Mechanism(mechanism.origin, mechanism.bodies, joints, mechanism.contacts, gravity=gravity)
 
 # new_bodies = copy_bodies(mechanism.bodies, zeros(3), Dojo.RotX(0.0), get_body(mechanism, Symbol("Component18:1")).state.x2, X_AXIS, "_new")
@@ -209,13 +211,14 @@ for joint in mechanism.joints
     println(joint.name)
     println(Dojo.norm(Dojo.constraint(mechanism, joint)))
 end
-mechanism.timestep = 0.01
+mechanism.timestep = 0.001
 # Run the simulation
 function controller!(mechanism::Mechanism, t)
     println("Joint Residual: $(Dojo.norm(Dojo.residual(mechanism)))")
 
     # println("Contact Residual: $(Dojo.norm(Dojo.constraint(mechanism, mechanism.contacts[1])))")
-    joint = get_joint(mechanism, Symbol("Revolute 1_Long_scissor_unit v5:1+Long_link_member v3:2")) #Symbol("Revolute 2_Hinge_1 v15:5+Component2(Mirror):1")) #Symbol("Revolute 1_Long_scissor_unit v5:1+Long_link_member v3:2"))
+    joint = mechanism.joints[2]
+    # joint = get_joint(mechanism, Symbol("Revolute 1_Long_scissor_unit v5:1+Long_link_member v3:2")) #Symbol("Revolute 2_Hinge_1 v15:5+Component2(Mirror):1")) #Symbol("Revolute 1_Long_scissor_unit v5:1+Long_link_member v3:2"))
     println("Joint Angle: $(Dojo.minimal_coordinates(mechanism, joint))")
     # joint = get_joint(mechanism, Symbol("joint_3"))
     set_input!(joint, [5.0])
@@ -226,8 +229,8 @@ end
 # Dojo.zero_velocities!(mechanism)
 # mechanism = Mechanism(mechanism.origin, mechanism.bodies, mechanism.joints, mechanism.contacts, gravity=zeros(3))
 # z = storage[1].
-opts = SolverOptions(rtol=1e-5, btol=1e-5, verbose=false, max_iter=20)
-steps = 1:100
+opts = SolverOptions(rtol=1e-6, btol=1e-6, verbose=false, max_iter=100)
+steps = 1:10000
 storage = Storage(steps, length(mechanism.bodies))
 simulate!(mechanism, steps, storage, controller!, record=true, opts=opts)
 visualize(mechanism, storage, vis=vis, show_frame=true, visualize_floor=false, show_joint=true, show_contact=true)
