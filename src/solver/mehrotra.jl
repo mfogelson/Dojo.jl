@@ -199,6 +199,7 @@ function mehrotra!(mechanism::Mechanism{T}; opts=SolverOptions{T}()) where T
 
         # evaluate progress
 		made_progress = (!(rvio_ < opts.rtol) && (rvio_ < 0.8rvio)) || (!(bvio_ < opts.btol) && (bvio_ < 0.8bvio)) # we only care when progress is made while the tolerance is not met
+        # println("made progress: ", made_progress)
 		made_progress ? no_progress = max(no_progress - 1, 0) : no_progress += 1
 		rvio, bvio = rvio_, bvio_
 		(no_progress >= opts.no_progress_max) && (undercut *= opts.no_progress_undercut)
