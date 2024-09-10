@@ -1,6 +1,6 @@
 using Dojo
 using LinearAlgebra
-
+using Plots
 """
 Create a cylinder body for a link.
 """

@@ -32,7 +32,7 @@ function create_mesh_body(link_name, link_data)
 end
 
 # Function to create a joint constraint
-function create_joint_constraint(joint_name, joint_data, bodies)
+function create_joint_constraint(joint_name, joint_data, bodies, slop=0.0)
     parent_body = findfirst(x -> x.name == Symbol(joint_data["parent"]), bodies)
     child_body = findfirst(x -> x.name == Symbol(joint_data["child"]), bodies)
 
@@ -48,17 +48,30 @@ function create_joint_constraint(joint_name, joint_data, bodies)
         end
         # lower_limit = ifelse(joint_data["lower_limit"] != [], SVector{1}(joint_data["lower_limit"]), szeros(Float64, 0))
         # upper_limit = ifelse(joint_data["upper_limit"] != [], SVector{1}(joint_data["upper_limit"]), szeros(Float64, 0))
-
-        joint = JointConstraint(
-            Revolute(
-                bodies[parent_body], bodies[child_body],
-                Dojo.vector_rotate(joint_data["axis"], bodies[child_body].state.q2'),;
-                parent_vertex=joint_data["parent_vertex"],
-                child_vertex=joint_data["child_vertex"],
-                orientation_offset=bodies[parent_body].state.q2' * bodies[child_body].state.q2,
-                rot_joint_limits=[lower_limit, upper_limit]
-            ), name=Symbol(joint_name)
-        )
+        if !iszero(slop)
+            joint = JointConstraint(
+                PlanarAxis(
+                    bodies[parent_body], bodies[child_body],
+                    Dojo.vector_rotate(joint_data["axis"], bodies[child_body].state.q2'),;
+                    parent_vertex=joint_data["parent_vertex"],
+                    child_vertex=joint_data["child_vertex"],
+                    orientation_offset=bodies[parent_body].state.q2' * bodies[child_body].state.q2,
+                    rot_joint_limits=[lower_limit, upper_limit], 
+                    tra_joint_limits=[[-slop, -slop], [slop, slop]]
+                ), name=Symbol(joint_name)
+            )
+        else
+            joint = JointConstraint(
+                Revolute(
+                    bodies[parent_body], bodies[child_body],
+                    Dojo.vector_rotate(joint_data["axis"], bodies[child_body].state.q2'),;
+                    parent_vertex=joint_data["parent_vertex"],
+                    child_vertex=joint_data["child_vertex"],
+                    orientation_offset=bodies[parent_body].state.q2' * bodies[child_body].state.q2,
+                    rot_joint_limits=[lower_limit, upper_limit]
+                ), name=Symbol(joint_name)
+            )
+        end
     elseif joint_data["type"] == "Fixed"
         joint = JointConstraint(
             Fixed(
@@ -123,7 +136,7 @@ function update_all_body_states!(bodies, translation_offset, rotation_offset)
     end
 end
 
-function parse_json(filename, translation_offset=zeros(3), rotation_offset=Dojo.RotX(0.0), contact_feet=false)
+function parse_json(filename; translation_offset=zeros(3), rotation_offset=Dojo.RotX(0.0), contact_feet=false, slop=0.0)
     parsed_data = JSON.parsefile(filename)
 
     # Initialize components
@@ -145,7 +158,7 @@ function parse_json(filename, translation_offset=zeros(3), rotation_offset=Dojo.
 
     # Extract joint data and create joints
     for (joint_name, joint_data) in parsed_data["joints"]
-        joint = create_joint_constraint(joint_name, joint_data, bodies)
+        joint = create_joint_constraint(joint_name, joint_data, bodies, slop)
         push!(joints, joint)
     end
 
@@ -188,7 +201,7 @@ filename = "/Users/mitchfogelson/Library/CloudStorage/Box-Box/00_Mitch Fogelson/
 
 # translation_offset = [0.0, 0.0, 4.9]
 # rotation_offset = Dojo.RotX(pi/2)
-mechanism, contact = parse_json(filename)#, translation_offset, rotation_offset, true);
+mechanism, contact = parse_json(filename, slop=0.1)#, translation_offset, rotation_offset, true);
 
 mechanism.origin
 fixed_body = get_body(mechanism, Symbol("Bennett-Basis:1"))
@@ -202,7 +215,7 @@ mechanism = Mechanism(mechanism.origin, mechanism.bodies, joints, mechanism.cont
 
 # mechanism = Mechanism(mechanism.origin, [mechanism.bodies; new_bodies], mechanism.joints, mechanism.contacts, gravity=[0.0, 0.0, -9.81])
 
-vis = Visualizer()
+# vis = Visualizer()
 delete!(vis)
 visualize(mechanism, vis=vis, visualize_floor=false, show_frame=true, show_joint=true, show_contact=true)
 
@@ -222,7 +235,9 @@ function velocity_controller!(joint, desired_velocity, actual_velocity, kp, kd)
     control_input = kp * error - kd * actual_velocity
 
     # Set the computed input (torque/acceleration) to the joint
-    set_input!(joint, [control_input])
+    input = zeros(Dojo.input_dimension(joint))
+    input[end] = control_input
+    set_input!(joint, input)
 end
 
 # Main controller function for the mechanism
@@ -234,20 +249,22 @@ function controller!(mechanism::Mechanism, t)
     joint = mechanism.joints[4]  # Adjust index as needed for the correct joint
 
     # Get the current joint angle and velocity
-    joint_angle = Dojo.minimal_coordinates(mechanism, joint)[1]
+    joint_angle = Dojo.minimal_coordinates(mechanism, joint)[end]
     pbody = get_body(mechanism, joint.parent_id)
     cbody = get_body(mechanism, joint.child_id)
-    joint_velocity = Dojo.minimal_velocities(joint, pbody, cbody, mechanism.timestep)[1]  # Assuming this function retrieves joint velocity
+    joint_velocity = Dojo.minimal_velocities(joint, pbody, cbody, mechanism.timestep)[end]  # Assuming this function retrieves joint velocity
 
     # Print the current joint angle and velocity for monitoring
     println("Joint Angle: $joint_angle")
     println("Joint Velocity: $joint_velocity")
-
+    for joint in mechanism.joints
+        println(Dojo.norm(joint.impulses[2]))
+    end
     # Desired velocity (set this as per your control objective)
-    desired_velocity = 1.0  # Desired velocity value
+    desired_velocity = 0.5  # Desired velocity value
 
     # PD controller gains (tune these values based on your mechanism's response)
-    kp = 100.0  # Proportional gain
+    kp = 50.0  # Proportional gain
     kd = 0.5   # Derivative gain
 
     # Apply velocity control using the PD controller
@@ -259,14 +276,19 @@ end
 # Dojo.zero_velocities!(mechanism)
 # mechanism = Mechanism(mechanism.origin, mechanism.bodies, mechanism.joints, mechanism.contacts, gravity=zeros(3))
 # z = storage[1].
-opts = SolverOptions(rtol=1e-6, btol=1e-6, verbose=true, max_iter=100)
-steps = 1:1000
+opts = SolverOptions(rtol=1e-6, btol=1e-6, verbose=false, max_iter=100)
+steps = 1:5000
 storage = Storage(steps, length(mechanism.bodies))
 simulate!(mechanism, steps, storage, controller!, record=true, opts=opts)
 visualize(mechanism, storage, vis=vis, show_frame=true, visualize_floor=false, show_joint=true, show_contact=true)
 
+A = full_matrix(mechanism.system)
+b = Dojo.full_vector(mechanism.system)
+F = Dojo.svd(A, full=true, alg=Dojo.LinearAlgebra.QRIteration())
+rank = sum(F.S .> 1e-6)
+F.S
 
-
+plot_body_positions_comparison([storage], [0.001])
 # ============================================================================ # maximal_to_json
 # function matrix_to_inertia(mat) where T
 #     return (mat[1, 1], mat[2, 2], mat[3, 3], -mat[1, 2], -mat[1, 3], -mat[2, 3])
