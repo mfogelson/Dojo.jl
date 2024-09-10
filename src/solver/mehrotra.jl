@@ -19,7 +19,7 @@ function mehrotra!(mechanism::Mechanism{T}; opts=SolverOptions{T}()) where T
     α = 1.0
 
 	initialize!.(mechanism.contacts)
-    println("updated reg")
+    # println("updated reg")
     set_entries!(mechanism, reg=opts.reg) # compute the residual
 
     bvio = bilinear_violation(mechanism) # does not require to apply set_entries!
@@ -36,11 +36,11 @@ function mehrotra!(mechanism::Mechanism{T}; opts=SolverOptions{T}()) where T
 		μ = 0.0
 		pull_residual!(mechanism)               # store the residual inside mechanism.residual_entries
         ldu_factorization!(mechanism.system)    # factorize system, modifies the matrix in place
-        A = full_matrix(mechanism.system)
-        F = svd(A, full=true, alg=LinearAlgebra.QRIteration())
-        rank = sum(F.S .> 1e-6)
-        println("rank: ", rank)
-        println("min eigen", minimum(F.S))
+        # A = full_matrix(mechanism.system)
+        # F = svd(A, full=true, alg=LinearAlgebra.QRIteration())
+        # rank = sum(F.S .> 1e-6)
+        # println("rank: ", rank)
+        # println("min eigen", minimum(F.S))
         ldu_backsubstitution!(mechanism.system) # solve system, modifies the vector in place
 
 		αaff = cone_line_search!(mechanism; τort=0.95, τsoc=0.95) # uses system.vector_entries which holds the search drection
@@ -63,6 +63,7 @@ function mehrotra!(mechanism::Mechanism{T}; opts=SolverOptions{T}()) where T
 
         # evaluate progress
 		made_progress = (!(rvio_ < opts.rtol) && (rvio_ < 0.8rvio)) || (!(bvio_ < opts.btol) && (bvio_ < 0.8bvio)) # we only care when progress is made while the tolerance is not met
+        # println("made progress: ", made_progress)
 		made_progress ? no_progress = max(no_progress - 1, 0) : no_progress += 1
 		rvio, bvio = rvio_, bvio_
 		(no_progress >= opts.no_progress_max) && (undercut *= opts.no_progress_undercut)
