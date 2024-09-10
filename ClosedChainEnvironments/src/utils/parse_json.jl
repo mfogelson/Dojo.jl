@@ -52,7 +52,7 @@ function create_joint_constraint(joint_name, joint_data, bodies)
         joint = JointConstraint(
             Revolute(
                 bodies[parent_body], bodies[child_body],
-                Dojo.vector_rotate(joint_data["axis"], bodies[parent_body].state.q2'),;
+                Dojo.vector_rotate(joint_data["axis"], bodies[child_body].state.q2'),;
                 parent_vertex=joint_data["parent_vertex"],
                 child_vertex=joint_data["child_vertex"],
                 orientation_offset=bodies[parent_body].state.q2' * bodies[child_body].state.q2,
@@ -182,7 +182,7 @@ end
      
 
 # Load the JSON file
-filename = "/Users/mitchfogelson/Library/CloudStorage/Box-Box/00_Mitch Fogelson/00_Research/00_Niac_Space_Structures/09_Closed_Loop_Simulation/Experiments/2024_09_08_bennett_linkage/Bennett Linkage v9_link_dict.json"
+filename = "/Users/mitchfogelson/Library/CloudStorage/Box-Box/00_Mitch Fogelson/00_Research/00_Niac_Space_Structures/09_Closed_Loop_Simulation/Experiments/2024_09_09_bennett_linkage/Bennett-Linkage v6_link_dict.json"
 # filename = "/Users/mitchfogelson/Library/CloudStorage/Box-Box/00_Mitch Fogelson/00_Research/00_Niac_Space_Structures/09_Closed_Loop_Simulation/Experiments/2024_08_01_PET_unit/PET/PET_unit v60_link_dict.json"
 # filename = "/Users/mitchfogelson/Library/CloudStorage/Box-Box/00_Mitch Fogelson/00_Research/00_Niac_Space_Structures/09_Closed_Loop_Simulation/Experiments/2024_07_24_jansen/Jansen Mechanism v7 v7_link_dict.json" #/Users/mitchfogelson/Library/CloudStorage/Box-Box/00_Mitch Fogelson/00_Research/00_Niac_Space_Structures/09_Closed_Loop_Simulation/Experiments/2024_07_24_pet/folding_scissor_assembly2 v5_link_dict.json" #"/Users/mitchfogelson/Library/CloudStorage/Box-Box/00_Mitch Fogelson/00_Research/00_Niac_Space_Structures/09_Closed_Loop_Simulation/Experiments/Jansen Mechanism v7 v6_link_dict.json" #"/Users/mitchfogelson/Library/CloudStorage/Box-Box/00_Mitch Fogelson/00_Research/00_Niac_Space_Structures/09_Closed_Loop_Simulation/test_body v5_link_dict.json" #"/Users/mitchfogelson/Library/CloudStorage/Box-Box/00_Mitch Fogelson/00_Research/00_Niac_Space_Structures/09_Closed_Loop_Simulation/fusion_to_dojo_test_description/robot_config.json" #"/Users/mitchfogelson/Jansen_description/robot_config.json" #"/Users/mitchfogelson/Projects/Research_Projects/fusion2urdf/Test/orientaiton_description/robot_config.json"
 
@@ -191,10 +191,10 @@ filename = "/Users/mitchfogelson/Library/CloudStorage/Box-Box/00_Mitch Fogelson/
 mechanism, contact = parse_json(filename)#, translation_offset, rotation_offset, true);
 
 mechanism.origin
-fixed_body = get_body(mechanism, Symbol("link2_new v23:1"))
+fixed_body = get_body(mechanism, Symbol("Bennett-Basis:1"))
 # fixed_body = get_body(mechanism, Symbol("Long_scissor_unit v5:1+Long_link_member v3:1")) #Symbol("Component8:1"))
 joint = JointConstraint(Fixed(mechanism.origin, fixed_body, parent_vertex=fixed_body.state.x2, orientation_offset=fixed_body.state.q2), name=:fixed)
-joints = [joint; mechanism.joints[]
+joints = [joint; mechanism.joints[1:end]]
 mechanism = Mechanism(mechanism.origin, mechanism.bodies, joints, mechanism.contacts, gravity=gravity)
 
 # new_bodies = copy_bodies(mechanism.bodies, zeros(3), Dojo.RotX(0.0), get_body(mechanism, Symbol("Component18:1")).state.x2, X_AXIS, "_new")
@@ -213,15 +213,45 @@ for joint in mechanism.joints
 end
 mechanism.timestep = 0.001
 # Run the simulation
+# Define a PD controller function for velocity control
+function velocity_controller!(joint, desired_velocity, actual_velocity, kp, kd)
+    # Calculate velocity error
+    error = desired_velocity - actual_velocity
+
+    # PD control: compute control input (torque/acceleration) based on error
+    control_input = kp * error - kd * actual_velocity
+
+    # Set the computed input (torque/acceleration) to the joint
+    set_input!(joint, [control_input])
+end
+
+# Main controller function for the mechanism
 function controller!(mechanism::Mechanism, t)
+    # Print joint residual to monitor constraints
     println("Joint Residual: $(Dojo.norm(Dojo.residual(mechanism)))")
 
-    # println("Contact Residual: $(Dojo.norm(Dojo.constraint(mechanism, mechanism.contacts[1])))")
-    joint = mechanism.joints[2]
-    # joint = get_joint(mechanism, Symbol("Revolute 1_Long_scissor_unit v5:1+Long_link_member v3:2")) #Symbol("Revolute 2_Hinge_1 v15:5+Component2(Mirror):1")) #Symbol("Revolute 1_Long_scissor_unit v5:1+Long_link_member v3:2"))
-    println("Joint Angle: $(Dojo.minimal_coordinates(mechanism, joint))")
-    # joint = get_joint(mechanism, Symbol("joint_3"))
-    set_input!(joint, [5.0])
+    # Retrieve the specific joint for control, e.g., the 4th joint
+    joint = mechanism.joints[4]  # Adjust index as needed for the correct joint
+
+    # Get the current joint angle and velocity
+    joint_angle = Dojo.minimal_coordinates(mechanism, joint)[1]
+    pbody = get_body(mechanism, joint.parent_id)
+    cbody = get_body(mechanism, joint.child_id)
+    joint_velocity = Dojo.minimal_velocities(joint, pbody, cbody, mechanism.timestep)[1]  # Assuming this function retrieves joint velocity
+
+    # Print the current joint angle and velocity for monitoring
+    println("Joint Angle: $joint_angle")
+    println("Joint Velocity: $joint_velocity")
+
+    # Desired velocity (set this as per your control objective)
+    desired_velocity = 1.0  # Desired velocity value
+
+    # PD controller gains (tune these values based on your mechanism's response)
+    kp = 100.0  # Proportional gain
+    kd = 0.5   # Derivative gain
+
+    # Apply velocity control using the PD controller
+    velocity_controller!(joint, desired_velocity, joint_velocity, kp, kd)
 end
 # for (i, body) in enumerate(mechanism.bodies)
 #     set_maximal_configurations!(body, x=storage.x[i][1], q=storage.q[i][1])
@@ -229,8 +259,8 @@ end
 # Dojo.zero_velocities!(mechanism)
 # mechanism = Mechanism(mechanism.origin, mechanism.bodies, mechanism.joints, mechanism.contacts, gravity=zeros(3))
 # z = storage[1].
-opts = SolverOptions(rtol=1e-6, btol=1e-6, verbose=false, max_iter=100)
-steps = 1:10000
+opts = SolverOptions(rtol=1e-6, btol=1e-6, verbose=true, max_iter=100)
+steps = 1:1000
 storage = Storage(steps, length(mechanism.bodies))
 simulate!(mechanism, steps, storage, controller!, record=true, opts=opts)
 visualize(mechanism, storage, vis=vis, show_frame=true, visualize_floor=false, show_joint=true, show_contact=true)
