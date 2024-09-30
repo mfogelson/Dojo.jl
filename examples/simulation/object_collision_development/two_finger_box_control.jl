@@ -81,4 +81,4 @@ mech.bodies[3].state.x2 = [0.0, 0.601,1.0]
 
 storage = simulate!(mech, 5.0, controller!; record=true)
 
-visualize(mech, storage)
+visualize(mech, storage, show_contact=true)

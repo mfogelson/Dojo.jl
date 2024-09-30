@@ -24,6 +24,7 @@ Base.@kwdef mutable struct SolverOptions{T}
     no_progress_max::Int=3
     no_progress_undercut::T=10.0
     verbose::Bool=false
+    svd_threshold::T=1e-6
 end
 
 function Base.show(io::IO, mime::MIME{Symbol("text/plain")}, options::SolverOptions)

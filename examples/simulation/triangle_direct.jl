@@ -13,7 +13,7 @@ reg = 1e-10
 
 # ### Make triangle
 function direct_4_bar()
-    timestep = 0.0001
+    timestep = 0.01
 
     origin = Origin()
     bodies = Body{Float64}[]
@@ -30,10 +30,16 @@ function direct_4_bar()
     push!(bodies, link2)
     push!(bodies, link3)
 
-    joint1 = JointConstraint(Revolute(origin, link1, rotation_axis; parent_vertex=[0, 0, 0], child_vertex=[0, 0, -length_1/2]), name=Symbol("joint1"))
-    joint2 = JointConstraint(Revolute(link1, link2, rotation_axis; parent_vertex=[0, 0, length_1/2], child_vertex=[0, 0, -length_2/2]), name=Symbol("joint2"))
-    joint3 = JointConstraint(Revolute(link3, link2, rotation_axis; parent_vertex=[0, 0, -length_3/2], child_vertex=[0, 0, length_2/2]), name=Symbol("joint3"))
-    loop_joint = JointConstraint(Revolute(origin, link3, rotation_axis; parent_vertex=[-length_4, 0, 0], child_vertex=[0, 0, length_3/2]), name=Symbol("loop_joint"))
+    # joint1 = JointConstraint(Revolute(origin, link1, rotation_axis; parent_vertex=[0, 0, 0], child_vertex=[0, 0, -length_1/2]), name=Symbol("joint1"))
+    # joint2 = JointConstraint(Revolute(link1, link2, rotation_axis; parent_vertex=[0, 0, length_1/2], child_vertex=[0, 0, -length_2/2]), name=Symbol("joint2"))
+    # joint3 = JointConstraint(Revolute(link3, link2, rotation_axis; parent_vertex=[0, 0, -length_3/2], child_vertex=[0, 0, length_2/2]), name=Symbol("joint3"))
+    # loop_joint = JointConstraint(Revolute(origin, link3, rotation_axis; parent_vertex=[-length_4, 0, 0], child_vertex=[0, 0, length_3/2]), name=Symbol("loop_joint"))
+    translation_limits = [[-2.0, -2.0], [2.0, 2.0]] #[[-0.0, -0.0], [0.0, 0.0]]
+    rotational_limits =  [[0.0, -20*pi, -0.0], [0.0, 20*pi, 0.0]] #[Dojo.SA[-pi, -pi, -pi], Dojo.SA[pi, pi, pi]]#[szeros(Float64,0), szeros(Float64,0)]  #[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
+    joint1 = JointConstraint(Revolute(origin, link1, rotation_axis; child_vertex=[0, 0, -length_1/2], damper=0.1), name=Symbol("joint1"))
+    joint2 = JointConstraint(PlanarFree(link1, link2, rotation_axis; parent_vertex=[0, 0, length_1/2], child_vertex=[0, 0, -length_2/2],tra_joint_limits=translation_limits, rot_joint_limits=rotational_limits, damper=0.1), name=Symbol("joint2"))
+    joint3 = JointConstraint(PlanarFree(link3, link2, rotation_axis; parent_vertex=[0, 0, -length_3/2], child_vertex=[0, 0, length_2/2],tra_joint_limits=translation_limits, rot_joint_limits=rotational_limits, damper=0.1), name=Symbol("joint3"))
+    loop_joint = JointConstraint(PlanarFree(origin, link3, rotation_axis; parent_vertex=[-length_4, 0, 0], child_vertex=[0, 0, length_3/2],tra_joint_limits=translation_limits, rot_joint_limits=rotational_limits, damper=0.1), name=Symbol("loop_joint"))
 
     push!(joints, joint1)
     push!(joints, joint2)
@@ -46,17 +52,20 @@ end
 # ## initialize configurations
 function initialize_4_bar!(mechanism)
     offset = 0
-    θ = -pi/3
-    Dojo.set_maximal_configurations!(mechanism.bodies[1], x=Dojo.vector_rotate([0, 0, -link_length], Dojo.RotY(offset)), q=Dojo.RotY(pi)*Dojo.RotY(offset))
-    Dojo.set_maximal_configurations!(mechanism.bodies[2], x=Dojo.vector_rotate([-link_length/2, 0, -link_length], Dojo.RotY(offset)), q=Dojo.RotY(-pi/2)*Dojo.RotY(offset))
-    Dojo.set_maximal_configurations!(mechanism.bodies[3], x=Dojo.vector_rotate([-link_length, 0, -link_length/2], Dojo.RotY(offset)), q=Dojo.RotY(0)*Dojo.RotY(offset))
+    length_1 = 1.2
 
-    initialize_constraints!(mechanism, fixedids=[], regularization=1e-6, lineIter=10, newtonIter=100)
+    θ = -pi/3
+    Dojo.set_maximal_configurations!(mechanism.bodies[1], x=Dojo.vector_rotate([0, 0, -length_1/2], Dojo.RotY(offset)), q=Dojo.RotY(pi)*Dojo.RotY(offset))
+    # Dojo.set_maximal_configurations!(mechanism.bodies[2], x=Dojo.vector_rotate([-link_length/2, 0, -link_length], Dojo.RotY(offset)), q=Dojo.RotY(-pi/2)*Dojo.RotY(offset))
+    # Dojo.set_maximal_configurations!(mechanism.bodies[3], x=Dojo.vector_rotate([-link_length, 0, -link_length/2], Dojo.RotY(offset)), q=Dojo.RotY(0)*Dojo.RotY(offset))
+
+    # initialize_constraints!(mechanism, fixedids=[], regularization=1e-6, lineIter=10, newtonIter=100)
 end
 
 mechanism = direct_4_bar()
+set_maximal_state!(mechanism, initial_state)
 
-initialize_4_bar!(mechanism)
+# initialize_4_bar!(mechanism)
 
 if isdefined(Main, :vis)
     # If it exists, delete it
@@ -67,11 +76,15 @@ else
 end
 # delete!(vis)
 vis = visualize(mechanism; vis=vis, visualize_floor=false, show_frame=false, show_joint=true, joint_radius=0.1)
-mechanism.gravity = [0, 0, -9.81]
+# mechanism.gravity = [0, 0, 0.0]
 
-opts = SolverOptions(verbose=false, reg=reg, max_iter=100)
-tf = 1.0
+opts = SolverOptions(verbose=true, rtol=1e-6, btol=1e-3,reg=1e-10, max_iter=100)
+tf = mechanism.timestep*2
+print_angle(mechanism, joint) = println("Joint Angle: $(Dojo.minimal_coordinates(mechanism, joint))")
 function ctrl!(mech, t)
+    # zero_velocities!(mechanism)
+
+    print_angle(mechanism, mechanism.joints[1])
     # if t > 1
     #     mat = full_matrix(mech.system)[21:end, 1:18]
     #     Dojo.rank(mat) != 17 ? println(t, Dojo.rank(mat)) : nothing
@@ -80,17 +93,26 @@ function ctrl!(mech, t)
     #     # println("Minimum: $(minimum(s))")
     #     # println("Maximum: $(maximum(s))")
     # end
-    if Dojo.norm(mech.bodies[3].state.v15) > 1.5
+    if Dojo.norm(mech.bodies[1].state.v15) > 1.5
         # println("Velocity too high")
         return nothing
     end
-    Dojo.set_input!(mech, 1.0 * Dojo.SVector(0, 0, -0.01, 0))
+    # set_input!(get_joint(mechanism, Symbol("joint1")), [-0.0])
+    # Dojo.set_input!(mech, 1.0 * Dojo.SVector(0, 0, -0.01, 0))
     return nothing
 end
+zero_velocities!(mechanism)
+# mechanism.joints[2].rotational.joint_limits = [Dojo.SA[-pi, -pi, -pi], Dojo.SA[pi, pi, pi]]
+# mechanism.joints[3].rotational.joint_limits = [Dojo.SA[-pi, -pi, -pi], Dojo.SA[pi, pi, pi]]
+# mechanism.joints[4].rotational.joint_limits = [Dojo.SA[-pi, -pi, -pi], Dojo.SA[pi, pi, pi]]
 storage = Dojo.simulate!(mechanism, tf, ctrl!, record=true, opts=opts)
 delete!(vis)
 vis = visualize(mechanism, storage, vis=vis, visualize_floor=false, show_frame=false, show_joint=true, joint_radius=0.1)
 render(vis)
+
+plot(pe_00[10:end], label="Potential Energy Slop=0.0", xlabel="Time", ylabel="Energy", title="Energy vs Time", lw=2)
+plot!(pe_01[10:end], label="Potential Energy Slop=0.1", lw=2)
+plot!(pe_001[10:end], label="Potential Energy Slop=0.01", lw=2)
 
 
 data_matrices = []

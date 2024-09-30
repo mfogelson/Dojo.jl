@@ -4,11 +4,12 @@ using Pkg; Pkg.activate(".")
 using Dojo
 using JLD2
 using Dates
+using Plots
 # ### Mechanism components
 function get_scissor_mechanism(num_sets=3, initial_angle=0.0, slop=0.0)
     # ### Parameters
-    radius = 0.03
-    link_length = 0.45 # m? 
+    radius = 0.003
+    link_length = 0.045 # m? 
     mass = 0.0015 # kg? 
     rotation_axis = [1;0;0] 
     damper = 0.001
@@ -151,6 +152,32 @@ function controller!(mechanism, k)
     add_external_force!(mechanism.bodies[2], force=[0, -control_force/2, 0], vertex=[0, 0, -link_length/2])
 end
 
+
+function spring_controller!(mechanism, k)
+    # resting length of the spring
+    l0 = 0.0206375 # m
+    num_cells = 2
+    link_length = 0.045
+    for i in 1:num_cells
+        body1 = mechanism.bodies[2*i-1]
+        body2 = mechanism.bodies[2*i]
+
+        # current length of the spring
+        p1 = body1.state.x2 + Dojo.rotation_matrix(body1.state.q2) * [0, 0, link_length/2]
+        p2 = body2.state.x2 + Dojo.rotation_matrix(body2.state.q2) * [0, 0, link_length/2]
+        l = Dojo.norm(p1 - p2)
+
+        # spring constant
+        k = 1.0 # N/m
+
+        control_force = k * (l - l0)
+        println("Control force: ", control_force)
+    
+        add_external_force!(body1, force=[0, control_force/2, 0], vertex=[0, 0, link_length/2])
+        add_external_force!(body2, force=[0, -control_force/2, 0], vertex=[0, 0, link_length/2])
+    end
+end
+
 # # set_minimal_velocities!(mechanism, joint12, [0.2])
 
 # mechanism.gravity = [0;0;9.8]
@@ -160,37 +187,199 @@ end
 # for i in 1:mechanism.system.matrix_entries.n
 #     mechanism.system.matrix_entries[i,i].value += Dojo.I*1e-6
 # end
+cells = 23
+slop = 0.001
+theta0 = -pi*9/10
+println("Initialized Mechanism with $cells cells")
+
+mechanism = get_scissor_mechanism(cells, theta0, slop)
+solver = Dojo.mehrotra_svd!
+println("Starting Simulation with $solver")
+mechanism.timestep = 1/240
+steps = 61
+
+# cur_angle = get_angle_between_bodies(mechanism.bodies[1], mechanism.bodies[2])
+storage = Storage(steps, length(mechanism.bodies))
+# start = now()
+simulate!(mechanism, 1:steps, storage, spring_controller!, record=true , opts=SolverOptions(rtol=1e-7, btol=1e-4, reg=1e-10,verbose=false, svd_threshold=1e-7), abort_upon_failure=true, solver=solver)
+println("Simulation Done")
+vis = Visualizer()
+vis = visualize(mechanism, storage; vis=vis, visualize_floor=false, show_frame=true)
+# plot the position and end points of each of the members for all time
+m = steps
+n = 3*length(mechanism.bodies)
+body_pos_meters = [[0.0, 0.0, 0.0] for i in 1:m, j in 1:n]
+for body in 1:length(mechanism.bodies)
+    for timestep in 1:steps
+        # Extract the position at the current timestep for the current body
+        pos = storage.x[body][timestep]
+        pos_endpoint = storage.x[body][timestep] + Dojo.rotation_matrix(storage.q[body][timestep]) * [0, 0, -0.045/2]
+        pos_endpoint2 = storage.x[body][timestep] + Dojo.rotation_matrix(storage.q[body][timestep]) * [0, 0, 0.045/2]
+        # Store the position in the body_pos_meters array
+        body_pos_meters[timestep, 3*body-2] = pos
+        body_pos_meters[timestep, 3*body-1] = pos_endpoint
+        body_pos_meters[timestep, 3*body] = pos_endpoint2
+    end
+end
+
+using CSV
+using DataFrames
+CSV.write("paper_data/Scissor_jamming/09_25_2024_scissor_mechanism_slop_0.001_K_1.0.csv", DataFrame(body_pos_meters, :auto))
+body_pos_meters = CSV.read("paper_data/Scissor_jamming/scissor_mechanism.csv", DataFrame)
+
+
+# load csv file 
+# Read the CSV file
+body_pos_df = CSV.read("/Users/mitchfogelson/Projects/Research_Projects/co-tracker/videos/pred_tracks_formatted.csv", DataFrame)
+# remove the first column
+body_pos_df = select(body_pos_df, Not(:Frame))
+
+# Function to parse the coordinate string
+function parse_coord(s::AbstractString)
+    # Remove parentheses and split by comma
+    x, y = split(replace(s, r"[()]" => ""), ",")
+    return parse(Float64, x), parse(Float64, y)
+end
+
+# Get the number of frames and nodes
+n_frames = nrow(body_pos_df)
+n_nodes = ncol(body_pos_df)   # Subtract 1 for the 'Frame' column
+
+# Initialize the output array
+body_pos_meters_real = zeros(Float64, n_frames, n_nodes, 2)
+
+# Parse each coordinate pair and fill the array
+for (i, row) in enumerate(eachrow(body_pos_df))
+    for j in 1:ncol(body_pos_df)  # Start from 2 to skip the 'Frame' column
+        x, y = parse_coord(row[j])
+        # idx = (i - 1) * n_nodes + (j - 1)
+        body_pos_meters_real[i, j, 1] = x
+        body_pos_meters_real[i, j, 2] = y
+    end
+end
+
+
+# Function to parse the coordinate string
+function parse_coord(s::AbstractString)
+    # Remove brackets and split by comma
+    return parse.(Float64, split(replace(s, r"[\[\]]" => ""), ","))
+end
+# Extract coordinates from the first row
+coords = [parse_coord(body_pos_meters[1, col]) for col in names(body_pos_meters)]
+
+# Separate x, y, and z coordinates
+x = [coord[1] for coord in coords]
+y = [coord[2] for coord in coords]
+z = [coord[3] for coord in coords]
+
+using Plots
+# scatter plot the first row of data 
+scatter(body_pos_meters_real[1, :, 1]*55 .- 0.1, body_pos_meters_real[1, :, 2]*55 .- 0.7, label="Initial Position", xlabel="x (m)", ylabel="z (m)", title="Scissor Mechanism Position Over Time", legend=:topleft, aspect_ratio=:equal)
+scatter!(z, y, label="Real Data")
+# scatter(body_pos_meters[1, :, 2], body_pos_meters[1, :, 3], label="Initial Position", xlabel="x (m)", ylabel="z (m)", title="Scissor Mechanism Position Over Time", legend=:topleft, aspect_ratio=:equal)
+# scatter!(body_pos_meters[1, :, :], label="Real Data")
+# println("Runtime: ", now()-start)
+
+
+# Load the predicted data
+body_pos_meters = CSV.read("paper_data/Scissor_jamming/09_25_2024_scissor_mechanism_slop_0.001_K_1.0.csv", DataFrame)
+
+# Load the real data
+body_pos_df = CSV.read("/Users/mitchfogelson/Projects/Research_Projects/co-tracker/videos/pred_tracks_formatted.csv", DataFrame)
+body_pos_df = select(body_pos_df, Not(:Frame))
+
+# Function to parse the coordinate string for real data
+function parse_coord_real(s::AbstractString)
+    x, y = split(replace(s, r"[()]" => ""), ",")
+    return parse(Float64, x), parse(Float64, y)
+end
+
+# Function to parse the coordinate string for predicted data
+function parse_coord_pred(s::AbstractString)
+    return parse.(Float64, split(replace(s, r"[\[\]]" => ""), ","))
+end
+
+# Process real data
+n_frames = nrow(body_pos_df)
+n_nodes = ncol(body_pos_df)
+body_pos_meters_real = zeros(Float64, n_frames, n_nodes, 2)
+
+for (i, row) in enumerate(eachrow(body_pos_df))
+    for j in 1:ncol(body_pos_df)
+        x, y = parse_coord_real(row[j])
+        body_pos_meters_real[i, j, 1] = x
+        body_pos_meters_real[i, j, 2] = y
+    end
+end
+
+# Process predicted data
+coords_pred = [parse_coord_pred(body_pos_meters[i, col]) for i in 1:nrow(body_pos_meters), col in names(body_pos_meters)]
+x_pred = [coord[1] for coord in coords_pred]
+y_pred = [coord[2] for coord in coords_pred]
+z_pred = [coord[3] for coord in coords_pred]
+
+# Create the animation
+anim = @animate for i in 1:n_frames
+    scatter(z_pred[i, :], y_pred[i, :], 
+            label="Predicted Slop=0.001 K=1 N/m", markersize=7, color=:red)
+    scatter!(body_pos_meters_real[i, :, 1]*5.5 .-0.01, body_pos_meters_real[i, :, 2]*5.5 .- 0.07, 
+            label="Real", xlabel="x (m)", ylabel="z (m)", 
+            title="Scissor Mechanism Position - Frame $i", 
+            legend=:topleft, aspect_ratio=:equal,
+            markersize=6, color=:blue)
+    
+    xlims!(-0.03, .3)  # Adjust these limits as needed
+    ylims!(-0.06, 0.06)  # Adjust these limits as needed
+end
+
+# Save the animation
+gif(anim, "paper_data/Scissor_jamming/scissor_mechanism_animation_slop_0.001.gif", fps = 30)
+
+datetime = now()
+println("Saving Data")
 
 function main()
-    println("Initialized Mechanism")
-    cells = 20
-    slop = 0.003
-    theta0 = -pi*9/10
-    mechanism = get_scissor_mechanism(cells, theta0, slop)
-    
-    println("Starting Simulation")
-    cur_angle = get_angle_between_bodies(mechanism.bodies[1], mechanism.bodies[2])
     steps = 500
-    storage = Storage(steps, length(mechanism.bodies))
-    start = now()
-    simulate!(mechanism, 1:steps, storage, controller!, record=true , opts=SolverOptions(rtol=1e-7, btol=1e-4, reg=1e-10,verbose=false))
-    println("Simulation Done")
-    println("Runtime: ", now()-start)
-    
-    datetime = now()
-    println("Saving Data")
-    save("scissor_cells_$(cells)_slope_$(slop)_theta0_$(round(theta0, digits=2))_$datetime.jld2", "mechanism", mechanism, "storage", storage)
+    # cells = 1
+    slop = 0.0
+    theta0 = -pi*9/10
+    for solver in [Dojo.mehrotra!, Dojo.mehrotra_svd!, Dojo.mehrotra_niave!]
+        for cells in 1:20
+            println("Initialized Mechanism with $cells cells")
+
+            mechanism = get_scissor_mechanism(cells, theta0, slop)
+
+            println("Starting Simulation with $solver")
+            # cur_angle = get_angle_between_bodies(mechanism.bodies[1], mechanism.bodies[2])
+            storage = Storage(steps, length(mechanism.bodies))
+            # start = now()
+            simulate!(mechanism, 1:steps, storage, controller!, record=true , opts=SolverOptions(rtol=1e-7, btol=1e-4, reg=1e-10,verbose=false, svd_threshold=1e-7), abort_upon_failure=true, solver=solver)
+            println("Simulation Done")
+            # println("Runtime: ", now()-start)
+
+            datetime = now()
+            println("Saving Data")
+            # remove Dojo.
+            # solver =
+            save("/Users/mitchfogelson/.julia/dev/Dojo.jl/paper_data/Scissor_Sweep/$(solver)/scissor_cells_$(cells)_slope_$(slop)_theta0_$(round(theta0, digits=2))_$datetime.jld2", "mechanism", mechanism, "storage", storage)
+        end
+    end
 end
 main()
 
 
-# mechanism, storage = load("scissor_cells_3_slope_0.004_theta0_-2.83_2024-09-11T22:39:35.902.jld2", "mechanism", "storage")
+# mechanism, storage = load("linkage_slop_data/scissor_slop/scissor_cells_20_slope_0.003_theta0_-2.83_2024-09-12T08:03:36.199.jld2", "mechanism", "storage");
+mechanism, storage = load("linkage_slop_data/scissor_slop/scissor_cells_3_slope_0.004_theta0_-2.83_2024-09-11T22:39:35.902.jld2", "mechanism", "storage");
+A = full_matrix(mechanism.system)
+F = Dojo.svd(A, full=true, alg=Dojo.LinearAlgebra.QRIteration())
+using Plots
+plot(F.S, yscale=:log10, legend=false, title="Singular Values of Scissor with 3 cells 0.004 Slop", xlabel="Index", ylabel="Singular Value")
 # vis
 # ### Visualize
-# vis = Visualizer()
-# delete!(vis)
+vis = Visualizer()
+delete!(vis)
 # visualize(mechanism; vis=vis, visualize_floor=false, show_frame=true)
-# vis = visualize(mechanism, storage; vis=vis, visualize_floor=false, show_frame=true)
+vis = visualize(mechanism, storage; vis=vis, visualize_floor=false, show_frame=true)
 # render(vis)
 
 # for body in mechanism.bodies

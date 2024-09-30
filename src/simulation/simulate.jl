@@ -18,14 +18,15 @@ function simulate!(mechanism::Mechanism, steps::AbstractUnitRange, storage::Stor
         record::Bool=true,
         verbose::Bool=false,
         abort_upon_failure::Bool=false,
-        opts=SolverOptions(verbose=verbose))
+        opts=SolverOptions(verbose=verbose), 
+        solver=mehrotra!)
 
     initialize_simulation!(mechanism)
 
     for k = steps
         control!(mechanism, k)
         for joint in mechanism.joints input_impulse!(joint, mechanism) end
-        status = mehrotra!(mechanism, opts=opts)
+        status = solver(mechanism, opts=opts) #mehrotra!(mechanism, opts=opts)
         for body in mechanism.bodies clear_external_force!(body) end
         abort_upon_failure && (status == :failed) && break
         record && save_to_storage!(mechanism, storage, k)
@@ -39,13 +40,13 @@ function simulate!(mechanism::Mechanism{T}, tend::Real, args...;
         record::Bool=true,
         verbose::Bool=false,
         abort_upon_failure::Bool=false,
-        opts=SolverOptions(verbose=verbose)) where T
+        opts=SolverOptions(verbose=verbose), solver=mehrotra!) where T
 
     steps = Base.OneTo(Int64(ceil(tend / mechanism.timestep)))
     record ? (storage = Storage{T}(steps, length(mechanism.bodies))) : (storage = Storage{T}())
 
     storage = simulate!(mechanism, steps, storage, args...; verbose=verbose,
-        record=record, abort_upon_failure=abort_upon_failure, opts=opts)
+        record=record, abort_upon_failure=abort_upon_failure, opts=opts, solver=solver)
         
     return storage
 end

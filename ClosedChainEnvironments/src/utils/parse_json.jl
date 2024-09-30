@@ -1,33 +1,34 @@
 using JSON
 using Dojo
 
-gravity = [0.0, 0.0, 0.0]
+gravity = [0.0, 0.0, -9.81]
 # Function to convert inertia values to matrix
-function inertia_to_matrix(xx, yy, zz)
+function inertia_to_matrix(xx=1.0, yy=1.0, zz=1.0, xy=0.0, yz=0.0, xz=0.0)
     return [
-        xx  0.  0.;
-        0.  yy  0.;
-        0.  0.   zz
+        xx xy xz;
+        xy yy yz;
+        xz yz zz
     ]
 end
 
 # Function to create a Mesh body
 function create_mesh_body(link_name, link_data)
     inertia = inertia_to_matrix(link_data["inertia"]...)
-    body = Mesh(
-        link_data["stl"],
-        0.001,
-        #link_data["mass"] * 0.01,
-        # inertia .* 0.01,
-        Dojo.I(3) * 0.001,
-        position_offset=Vector{Float64}(link_data["stl_orig"]),
-        orientation_offset=Quaternion(1.0, 0.0, 0.0, 0.0),
-        scale=ones(3) * 0.1,
-        name=Symbol(link_name)
-    )
     rot_mat = [link_data["xaxis"] link_data["yaxis"] link_data["zaxis"]]
     q = Dojo.QuatRotation(rot_mat)
-    set_maximal_configurations!(body, x=link_data["x"], q=q.q)
+    body = Mesh(
+        link_data["stl"],
+        # 0.001,
+        link_data["mass"], # kg
+        inertia .* 1e4, # kg/cm^2 to kg/m^2
+        # Dojo.I(3) * 0.001,
+        position_offset= -Vector{Float64}(link_data["stl_orig"])/100.0, # cm to m zeros(Float64, 3),
+        orientation_offset=Quaternion(1, 0, 0, 0),
+        scale=ones(3) * 0.001, # mm to m 
+        name=Symbol(link_name)
+    )
+    
+    set_maximal_configurations!(body, x=link_data["x"]/100.0, q=q.q)
     return body
 end
 
@@ -53,22 +54,23 @@ function create_joint_constraint(joint_name, joint_data, bodies, slop=0.0)
                 PlanarAxis(
                     bodies[parent_body], bodies[child_body],
                     Dojo.vector_rotate(joint_data["axis"], bodies[child_body].state.q2'),;
-                    parent_vertex=joint_data["parent_vertex"],
-                    child_vertex=joint_data["child_vertex"],
+                    parent_vertex=joint_data["parent_vertex"]/100.0,
+                    child_vertex=joint_data["child_vertex"]/100.0,
                     orientation_offset=bodies[parent_body].state.q2' * bodies[child_body].state.q2,
-                    rot_joint_limits=[lower_limit, upper_limit], 
+                    # rot_joint_limits=[lower_limit, upper_limit], 
                     tra_joint_limits=[[-slop, -slop], [slop, slop]]
                 ), name=Symbol(joint_name)
             )
         else
+            println("Creating Revolute joint")
             joint = JointConstraint(
                 Revolute(
                     bodies[parent_body], bodies[child_body],
                     Dojo.vector_rotate(joint_data["axis"], bodies[child_body].state.q2'),;
-                    parent_vertex=joint_data["parent_vertex"],
-                    child_vertex=joint_data["child_vertex"],
+                    parent_vertex=joint_data["parent_vertex"]/100.0,
+                    child_vertex=joint_data["child_vertex"]/100.0,
                     orientation_offset=bodies[parent_body].state.q2' * bodies[child_body].state.q2,
-                    rot_joint_limits=[lower_limit, upper_limit]
+                    # rot_joint_limits=[lower_limit, upper_limit]
                 ), name=Symbol(joint_name)
             )
         end
@@ -76,8 +78,8 @@ function create_joint_constraint(joint_name, joint_data, bodies, slop=0.0)
         joint = JointConstraint(
             Fixed(
                 bodies[parent_body], bodies[child_body],
-                parent_vertex=joint_data["parent_vertex"],
-                child_vertex=joint_data["child_vertex"],
+                parent_vertex=joint_data["parent_vertex"]/100.0,
+                child_vertex=joint_data["child_vertex"]/100.0,
                 orientation_offset=bodies[parent_body].state.q2' * bodies[child_body].state.q2,
             ), name=Symbol(joint_name)
         )
@@ -192,32 +194,163 @@ function copy_bodies(bodies, translation_offset=zeros(3), rotation_offset=Dojo.R
 end
 
 
-     
+# using MeshIO     
+# using GeometryBasics
 
+# # Load the STL file
+# mesh = mechanism.bodies[1].shape
+# ext = lowercase(splitext(mesh.path)[2])
+# mesh = Dojo.MeshFileGeometry(open(read, mesh.path), ext[2:end])
+# # mesh = Dojo.load(.path)
+
+# # Extract vertices from the mesh
+# vertices = GeometryBasics.coordinates(mesh)
+# using MeshIO, GeometryBasics
+
+# function parse_binary_stl(mesh)
+#     contents = mesh.contents
+
+#     # Skip the first 80 bytes of header
+#     header = contents[1:80]
+
+#     # Get the number of triangles (next 4 bytes)
+#     num_triangles = reinterpret(UInt32, contents[81:84])[1]
+
+#     println("Number of triangles: ", num_triangles)
+
+#     # Start reading the triangles
+#     triangles = []
+#     offset = 85
+
+#     for i in 1:num_triangles
+#         # Read normal vector (12 bytes)
+#         normal = reinterpret(Float32, contents[offset:offset+11])
+#         offset += 12
+
+#         # Read 3 vertices (36 bytes total: 12 bytes per vertex)
+#         v1 = reinterpret(Float32, contents[offset:offset+11])
+#         v2 = reinterpret(Float32, contents[offset+12:offset+23])
+#         v3 = reinterpret(Float32, contents[offset+24:offset+35])
+#         offset += 36
+
+#         # Read the attribute byte count (2 bytes, ignored)
+#         attribute_byte_count = reinterpret(UInt16, contents[offset:offset+1])[1]
+#         offset += 2
+
+#         # Store the triangle (you can store it as a tuple or create a GeometryBasics object)
+#         push!(triangles, (v1, v2, v3))
+#     end
+
+#     return triangles
+# end
+
+# Load the STL file using MeshIO
+# mesh = load("path_to_your_file.stl")
+
+# Parse the binary STL
+# triangles = parse_binary_stl(mesh)
+
+# # println("Parsed triangles: ", triangles[1:5])  # Display first 5 triangles
+# # function compute_bounding_box_size(triangles)
+# #     # Flatten all the vertices into one array
+# #     vertices = vcat([vcat([tri[1], tri[2], tri[3]]) for tri in triangles]...)
+
+# #     # Find the minimum and maximum points for each axis
+# #     min_point = [minimum([vertex[i] for vertex in vertices]) for i in 1:3]
+# #     max_point = [maximum([vertex[i] for vertex in vertices]) for i in 1:3]
+
+# #     # Compute bounding box size (difference between max and min)
+# #     bounding_box_size = max_point .- min_point
+
+# #     return bounding_box_size, min_point, max_point
+# # end
+
+# bounding_box_size, min_point, max_point = compute_bounding_box_size(triangles)
+# println("Bounding Box Size: ", bounding_box_size)
 # Load the JSON file
-filename = "/Users/mitchfogelson/Library/CloudStorage/Box-Box/00_Mitch Fogelson/00_Research/00_Niac_Space_Structures/09_Closed_Loop_Simulation/Experiments/2024_09_09_bennett_linkage/Bennett-Linkage v6_link_dict.json"
+#! Scissor
+# filename = "/Users/mitchfogelson/Library/CloudStorage/Box-Box/00_Mitch Fogelson/00_Research/00_Niac_Space_Structures/09_Closed_Loop_Simulation/Experiments/2024_09_12_scissor_mechanism/scissor_mech_20links v3_link_dict.json"
+#! Bennett Linkage
+# filename = "/Users/mitchfogelson/Library/CloudStorage/Box-Box/00_Mitch Fogelson/00_Research/00_Niac_Space_Structures/09_Closed_Loop_Simulation/Experiments/2024_09_09_bennett_linkage/Bennett-Linkage v6_link_dict.json"
+# filename = "/Users/mitchfogelson/Library/CloudStorage/Box-Box/00_Mitch Fogelson/00_Research/00_Niac_Space_Structures/09_Closed_Loop_Simulation/Experiments/2024_09_22_pt2_bennett_linkage/Bennett-Basis v18_link_dict.json"
+filename = "/Users/mitchfogelson/Library/CloudStorage/Box-Box/00_Mitch Fogelson/00_Research/00_Niac_Space_Structures/09_Closed_Loop_Simulation/Experiments/2024_09_23_bennett_linkage/Bennett-Basis v18_link_dict.json"
+#! PET
+filename = "/Users/mitchfogelson/Library/CloudStorage/Box-Box/00_Mitch Fogelson/00_Research/00_Niac_Space_Structures/09_Closed_Loop_Simulation/Experiments/2024_09_23_pet/PET_unit v80_link_dict.json"
 # filename = "/Users/mitchfogelson/Library/CloudStorage/Box-Box/00_Mitch Fogelson/00_Research/00_Niac_Space_Structures/09_Closed_Loop_Simulation/Experiments/2024_08_01_PET_unit/PET/PET_unit v60_link_dict.json"
+
+#! Jansen
 # filename = "/Users/mitchfogelson/Library/CloudStorage/Box-Box/00_Mitch Fogelson/00_Research/00_Niac_Space_Structures/09_Closed_Loop_Simulation/Experiments/2024_07_24_jansen/Jansen Mechanism v7 v7_link_dict.json" #/Users/mitchfogelson/Library/CloudStorage/Box-Box/00_Mitch Fogelson/00_Research/00_Niac_Space_Structures/09_Closed_Loop_Simulation/Experiments/2024_07_24_pet/folding_scissor_assembly2 v5_link_dict.json" #"/Users/mitchfogelson/Library/CloudStorage/Box-Box/00_Mitch Fogelson/00_Research/00_Niac_Space_Structures/09_Closed_Loop_Simulation/Experiments/Jansen Mechanism v7 v6_link_dict.json" #"/Users/mitchfogelson/Library/CloudStorage/Box-Box/00_Mitch Fogelson/00_Research/00_Niac_Space_Structures/09_Closed_Loop_Simulation/test_body v5_link_dict.json" #"/Users/mitchfogelson/Library/CloudStorage/Box-Box/00_Mitch Fogelson/00_Research/00_Niac_Space_Structures/09_Closed_Loop_Simulation/fusion_to_dojo_test_description/robot_config.json" #"/Users/mitchfogelson/Jansen_description/robot_config.json" #"/Users/mitchfogelson/Projects/Research_Projects/fusion2urdf/Test/orientaiton_description/robot_config.json"
 
 # translation_offset = [0.0, 0.0, 4.9]
 # rotation_offset = Dojo.RotX(pi/2)
-mechanism, contact = parse_json(filename, slop=0.1)#, translation_offset, rotation_offset, true);
+mechanism, contact = parse_json(filename, slop=0.0)#, translation_offset, rotation_offset, true);
 
 mechanism.origin
-fixed_body = get_body(mechanism, Symbol("Bennett-Basis:1"))
+# fixed_body = get_body(mechanism, Symbol("Component5:1"))
+# fixed_body = get_body(mechanism, Symbol("Bennett-Basis:1"))
+fixed_body = get_body(mechanism, Symbol("Bennett_base:1"))
 # fixed_body = get_body(mechanism, Symbol("Long_scissor_unit v5:1+Long_link_member v3:1")) #Symbol("Component8:1"))
 joint = JointConstraint(Fixed(mechanism.origin, fixed_body, parent_vertex=fixed_body.state.x2, orientation_offset=fixed_body.state.q2), name=:fixed)
+# joint = JointConstraint(Revolute(mechanism.origin, fixed_body, [0,0,1], parent_vertex=fixed_body.state.x2, orientation_offset=fixed_body.state.q2), name=:fixed)
 joints = [joint; mechanism.joints[1:end]]
 mechanism = Mechanism(mechanism.origin, mechanism.bodies, joints, mechanism.contacts, gravity=gravity)
+vis = Visualizer()
+delete!(vis)
+visualize(mechanism, vis=vis, visualize_floor=false, show_frame=false, show_joint=true, show_contact=true, joint_radius=0.01)
+# get joints Revolute 8 to 23
+# Function to retrieve joints from Revolute 8 to Revolute 23 based on name pattern
+# function get_revolute_joints(mechanism)
+#     # List to store the matching joints
+#     matching_joints = JointConstraint{Float64}[]
+#     # Iterate through the desired revolute numbers
+#     for i in 8:65
+#         # Convert the revolute number to a string pattern to search for
+#         search_pattern = "Revolute $i"
+#         # Iterate through all joints in the mechanism
+#         for joint in mechanism.joints # Assuming joints are accessible as keys in the mechanism
+#             # Check if the joint name contains the desired pattern
+#             if occursin(search_pattern, string(joint.name))
+#                 # Retrieve and store the joint
+#                 push!(matching_joints, joint)
+#             end
+#         end
+#     end
+#     return matching_joints
+# end
+# # get_joint(mechanism, Symbol("Revolute 8_ComponentX:1"))
+# reduced_joints = get_revolute_joints(mechanism)
+# function get_bodies_from_joints(mechanism, joints)
+#     bodies = Body{Float64}[]
+#     for joint in joints 
+#         cbody = get_body(mechanism, joint.child_id)
+#         pbody = get_body(mechanism, joint.parent_id)
+#         if !in(cbody, bodies)
+#             push!(bodies, cbody)
+#         end
+#         if !in(pbody, bodies)
+#             push!(bodies, pbody)
+#         end
+#     end
+#     return bodies
+# end
+# reduced_bodies = get_bodies_from_joints(mechanism, reduced_joints)
+# mechanism = Mechanism(mechanism.origin, reduced_bodies, [joint; reduced_joints], mechanism.contacts, gravity=gravity)
+# # new_bodies = copy_bodies(mechanism.bodies, zeros(3), Dojo.RotX(0.0), get_body(mechanism, Symbol("Component18:1")).state.x2, X_AXIS, "_new")
+# # push!(joints, joint)
 
-# new_bodies = copy_bodies(mechanism.bodies, zeros(3), Dojo.RotX(0.0), get_body(mechanism, Symbol("Component18:1")).state.x2, X_AXIS, "_new")
-# push!(joints, joint)
-
-# mechanism = Mechanism(mechanism.origin, [mechanism.bodies; new_bodies], mechanism.joints, mechanism.contacts, gravity=[0.0, 0.0, -9.81])
+# # mechanism = Mechanism(mechanism.origin, [mechanism.bodies; new_bodies], mechanism.joints, mechanism.contacts, gravity=[0.0, 0.0, -9.81])
+# initial_angle = pi/3
+# num_sets = 2
+# link_length = 4.5/2
+# for i in 1:num_sets
+#     Dojo.set_maximal_configurations!(mechanism.bodies[2i-1], x=mechanism.bodies[2i-1].state.x2 + [(i-1)*link_length*cos(initial_angle/2), 0, 0], q=Dojo.RotY((-1)^(i+i%2)*initial_angle/2))
+#     Dojo.set_maximal_configurations!(mechanism.bodies[2i], x=mechanism.bodies[2i].state.x2 + [(i-1)*link_length*cos(initial_angle/2), 0, 0], q=Dojo.RotY((-1)^(i+((i+1)%2))*initial_angle/2))
+# end
+# get_angle_between_bodies(mechanism.bodies[1], mechanism.bodies[2])
 
 # vis = Visualizer()
-delete!(vis)
-visualize(mechanism, vis=vis, visualize_floor=false, show_frame=true, show_joint=true, show_contact=true)
+# delete!(vis)
+# visualize(mechanism, vis=vis, visualize_floor=false, show_frame=false, show_joint=true, show_contact=true, joint_radius=0.01)
 
 res = Dojo.residual(mechanism)
 for joint in mechanism.joints
@@ -236,6 +369,8 @@ function velocity_controller!(joint, desired_velocity, actual_velocity, kp, kd)
 
     # Set the computed input (torque/acceleration) to the joint
     input = zeros(Dojo.input_dimension(joint))
+    println("Control Input: $control_input")
+    # println("Error: $error")
     input[end] = control_input
     set_input!(joint, input)
 end
@@ -243,10 +378,11 @@ end
 # Main controller function for the mechanism
 function controller!(mechanism::Mechanism, t)
     # Print joint residual to monitor constraints
-    println("Joint Residual: $(Dojo.norm(Dojo.residual(mechanism)))")
+    # println("Joint Residual: $(Dojo.norm(Dojo.residual(mechanism)))")
 
     # Retrieve the specific joint for control, e.g., the 4th joint
-    joint = mechanism.joints[4]  # Adjust index as needed for the correct joint
+    joint = mechanism.joints[3]
+    # joint = mechanism.joints[4]  # Adjust index as needed for the correct joint
 
     # Get the current joint angle and velocity
     joint_angle = Dojo.minimal_coordinates(mechanism, joint)[end]
@@ -255,20 +391,56 @@ function controller!(mechanism::Mechanism, t)
     joint_velocity = Dojo.minimal_velocities(joint, pbody, cbody, mechanism.timestep)[end]  # Assuming this function retrieves joint velocity
 
     # Print the current joint angle and velocity for monitoring
-    println("Joint Angle: $joint_angle")
-    println("Joint Velocity: $joint_velocity")
-    for joint in mechanism.joints
-        println(Dojo.norm(joint.impulses[2]))
-    end
+    # println("Joint Angle: $joint_angle")
+    # println("Joint Velocity: $joint_velocity")
+    # for joint in mechanism.joints
+    #     println(Dojo.norm(joint.impulses[2]))
+    # end
     # Desired velocity (set this as per your control objective)
-    desired_velocity = 0.5  # Desired velocity value
+    desired_velocity = -0.523599 # Rad/sec  # Desired velocity value
 
     # PD controller gains (tune these values based on your mechanism's response)
-    kp = 50.0  # Proportional gain
-    kd = 0.5   # Derivative gain
+    kp = 10.0  # Proportional gain
+    kd = 0.1   # Derivative gain
 
     # Apply velocity control using the PD controller
     velocity_controller!(joint, desired_velocity, joint_velocity, kp, kd)
+end
+
+function pos_controller!(mechanism, k)
+    # Target angle in radians
+    target_angle = pi/4
+
+    # Get the current angle between the two bodies
+    _, current_angle, _ = get_angle_between_bodies(mechanism.bodies[1], mechanism.bodies[2])
+
+    println("Current angle: ", current_angle)
+
+    # Calculate the error
+    angle_error = target_angle - current_angle
+    link_length = 0.45
+
+    vel_error = -mechanism.bodies[1].state.ω15[2]
+    println("Angle error: ", angle_error)
+
+    # Proportional gain (you may need to tune this)
+    Kp = 1e3
+    Kd = 7e2
+
+    # Calculate the control torque
+    control_torque = Kp * -angle_error + Kd * vel_error *0.1
+    control_force = control_torque/link_length/2
+
+    println("Control torque: ", control_torque)
+    # println("Control force: ", control_force)
+
+    # Apply the control torque to both bodies in opposite directions around x-axis
+    add_external_force!(mechanism.bodies[1], force=[0.0, 0.0, 0.0], torque=[0.0, -control_torque/2, 0.0])
+    add_external_force!(mechanism.bodies[2], force=[0.0, 0.0, 0.0], torque=[0.0, control_torque/2, 0.0])
+
+    # You can keep the original forces if needed, or modify them
+    # add_external_force!(mechanism.bodies[1], force=[0, control_force/2, 0], vertex=[0, 0, -link_length/2])
+    # add_external_force!(mechanism.bodies[2], force=[0, -control_force/2, 0], vertex=[0, 0, -link_length/2])
 end
 # for (i, body) in enumerate(mechanism.bodies)
 #     set_maximal_configurations!(body, x=storage.x[i][1], q=storage.q[i][1])
@@ -276,19 +448,32 @@ end
 # Dojo.zero_velocities!(mechanism)
 # mechanism = Mechanism(mechanism.origin, mechanism.bodies, mechanism.joints, mechanism.contacts, gravity=zeros(3))
 # z = storage[1].
-opts = SolverOptions(rtol=1e-6, btol=1e-6, verbose=false, max_iter=100)
-steps = 1:5000
+zero_velocities!(mechanism)
+# opts = SolverOptions(rtol=1e-4, btol=1e-5, verbose=true, max_iter=15, undercut=10.0)
+opts = SolverOptions(rtol=1e-6, btol=1e-5, verbose=true, max_iter=20)
+steps = 1:300
 storage = Storage(steps, length(mechanism.bodies))
-simulate!(mechanism, steps, storage, controller!, record=true, opts=opts)
-visualize(mechanism, storage, vis=vis, show_frame=true, visualize_floor=false, show_joint=true, show_contact=true)
+# @time simulate!(mechanism, 1:2, storage, record=true, opts=opts)
+simulate!(mechanism, steps, storage, pos_controller!, record=true, opts=opts)
+
+# using JLD2
+# save("09_15_2024_scissor_20_link_jamming.jld2", "storage", storage, "mechanism", mechanism, "opts", opts, "steps", steps)
+# using Profile
+# using ProfileView
+# @profile simulate!(mechanism, 1:2, storage, controller!, record=true, opts=opts)
+# ProfileView.view()
+# vis = Visualizer()
+visualize(mechanism, storage, vis=vis, show_frame=true, visualize_floor=false, show_joint=true, show_contact=true, joint_radius=0.01)
 
 A = full_matrix(mechanism.system)
 b = Dojo.full_vector(mechanism.system)
 F = Dojo.svd(A, full=true, alg=Dojo.LinearAlgebra.QRIteration())
 rank = sum(F.S .> 1e-6)
 F.S
-
-plot_body_positions_comparison([storage], [0.001])
+# more tick marks
+using Plots
+plot(F.S, yscale=:log10, legend=false, xlabel="Singular Value Index", ylabel="Singular Value", title="Singular Value Spectrum", xticks=0:1:length(F.S), yticks=10.0 .^ (-10:1:10))
+# plot_body_positions_comparison([storage], [0.001])
 # ============================================================================ # maximal_to_json
 # function matrix_to_inertia(mat) where T
 #     return (mat[1, 1], mat[2, 2], mat[3, 3], -mat[1, 2], -mat[1, 3], -mat[2, 3])

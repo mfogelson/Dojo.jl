@@ -95,13 +95,21 @@ z0 = get_maximal_state(mechanism)
 # Set positions for planes
 set_maximal_configurations!(get_body(mechanism, :bottom_plane), x=[0.0, 0.0, -0.0105-plane_thickness/2])
 set_maximal_configurations!(get_body(mechanism, :top_plane), x=[0.0, 0.0, 0.0105+plane_thickness/2]) # 102 mm above the bottom plane
-
+Dojo.initialize_state!(mechanism) # set x1, q1 and zeroes out JF2 Jτ2
+system = mechanism.system
+@save "system0.jld2" system
+# set_data!(mechanism, data)
+# set_solution!(mechanism, sol)
+Dojo.set_entries!(mechanism, reg=1e-10)
+res = Dojo.full_vector(system)
+A = Dojo.full_matrix(system)
 vis = Visualizer()
 delete!(vis)
 visualize(mechanism, vis=vis, visualize_floor=false, show_contact=false, joint_radius=0.0)
 
 # Controller function to apply the external force
-max_singular_values = []
+# max_singular_values = []
+using JLD2
 function controller!(mechanism, k)
     for contact in mechanism.contacts
         model = contact.model
@@ -114,6 +122,11 @@ function controller!(mechanism, k)
             println("Contact at $(contact.name)!")
         end
     end
+
+    # if k % 2 == 0
+    save("system$(1500+k).jld2", "system", mechanism.system)
+    # end
+
     # if k == 1
         # println("Applying external force")
     add_external_force!(mechanism.bodies[1], force=[external_force, 0.0, 0.0], vertex=[0.0, 0.0, edge_length])
@@ -122,12 +135,14 @@ end
 
 # Simulate
 opts = SolverOptions(verbose=false, rtol=1e-8, btol=1e-8, reg=1e-6, max_iter=100)
-storage = simulate!(mechanism, 0.2, controller!, record = true, opts = opts)
+storage = simulate!(mechanism, 500*mechanism.timestep, controller!, record = true, opts = opts)
 
 # Visualize
-# vis = Visualizer()
+vis = Visualizer()
 delete!(vis)
 visualize(mechanism, storage, vis=vis,visualize_floor=false, show_contact=true, joint_radius=0.0)
+
+save("wedge_block_1501.jld2", "mechanism", mechanism, "storage", storage)
 
 for contact in mechanism.contacts
     model = contact.model

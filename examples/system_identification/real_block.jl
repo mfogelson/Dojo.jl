@@ -1,7 +1,11 @@
 # ### Setup
 # PKG_SETUP
+using Pkg
+Pkg.activate(joinpath(@__DIR__, ".."))
 using Dojo
+Pkg.activate("DojoEnvironments")
 using DojoEnvironments
+Pkg.activate(joinpath(@__DIR__, ".."))
 using Plots
 using JLD2
 using ForwardDiff

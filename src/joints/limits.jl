@@ -7,7 +7,14 @@ function constraint(joint::Joint{T,Nλ,Nb,N,Nb½},
     e2 = minimal_coordinates(joint, xa, qa, xb, qb)
 
     s, γ = split_impulses(joint, η)
-
+    # println("Size of s: ", size(s))
+    # println("Size of γ: ", size(γ))
+    # println("Size of μ: ", size(μ))
+    # println("Size of e1: ", size(e1))
+    # println("Size of e2: ", size(e2))
+    # println(e2)
+    # println(joint.name)
+    # println("Size of joint.joint_limits: ", size(joint.joint_limits))
     return [
             s .* γ .- μ;
             s[SUnitRange(1,Nb½)] - (joint.joint_limits[2] .- e2);
@@ -57,5 +64,5 @@ function add_limits(mech::Mechanism, joint::JointConstraint;
         rot.orientation_offset, rot.spring, rot.damper, rot.spring_offset, rot_limits,
         rot.spring_type, rot.input), joint.parent_id, joint.child_id)
 
-    JointConstraint((tra_limit, rot_limit); name=joint.name)
+    JointConstraint((tra_limit, rot_limit, joint.type); name=joint.name)
 end

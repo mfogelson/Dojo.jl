@@ -1,8 +1,9 @@
 using Dojo
 using FiniteDiff
 using LinearAlgebra
-include("make_scissor.jl")
-include("make_jansen.jl")
+using JLD2
+include("/Users/mitchfogelson/.julia/dev/Dojo.jl/ClosedChainEnvironments/src/environments/scissor_mech/make_scissor.jl")
+include("/Users/mitchfogelson/.julia/dev/Dojo.jl/ClosedChainEnvironments/src/environments/jansen_mech/make_jansen.jl")
 
 function initialize_constraint_jacobian(mechanism::Mechanism, freeids::Set{Int64}, attjac=true)
     # Getting the degrees of freedom for each joint
@@ -74,7 +75,7 @@ function set_configuration!(mechanism::Mechanism, freeids::Set{Int64}, z::Abstra
     for body in mechanism.bodies
         if body.id in freeids
             x, q = unpack_configuration(z[Dojo.SUnitRange(off+1,end)]); off += 7
-            q = Quaternion(normalize(q)...)
+            q = Quaternion(Dojo.normalize(q)...)
             body.state.x1 = x
             body.state.q1 = q
 
@@ -304,7 +305,7 @@ function initialize_joint_constraints(mechanism::Mechanism{T}, z0::AbstractVecto
             residual_norm = norm(get_residual(mechanism, freeids, z))
             objective_function_val = objective_function(mechanism, freebodies,freeids, jac, joint_idx, body_idx, z, zero_dz)
             println("Converged: Iteration $i | Residual norm: $residual_norm | Objective function: $objective_function_val")
-            break
+            return storage
         end
     end
     residual_norm = norm(get_residual(mechanism, freeids, z))
@@ -313,90 +314,91 @@ function initialize_joint_constraints(mechanism::Mechanism{T}, z0::AbstractVecto
     return storage
 end
 
-# ============================================================================ #
-# Generate Jansen Data
+function examples()
+    # ============================================================================ #
+    # Generate Jansen Data
 
-mechanism = make_jansen_full()
-fixed_ids = get_fixed_ids(mechanism)
-freebodies, freeids = get_free_bodies(mechanism,fixedids=fixed_ids)
-@time z0 = get_maximal_configuration(mechanism, freeids) #.+ 1e-5
+    mechanism = make_jansen_full()
+    fixed_ids = get_fixed_ids(mechanism)
+    freebodies, freeids = get_free_bodies(mechanism,fixedids=fixed_ids)
+    @time z0 = get_maximal_configuration(mechanism, freeids) #.+ 1e-5
 
-newtonIter = 100
-storage = Storage(newtonIter, length(mechanism.bodies))
-initialize_joint_constraints(mechanism, z0, fixedids=fixed_ids, newtonIter = newtonIter, lineIter = 10, ε = 1e-8, debug=false, vis=nothing, storage=storage)
-
-delete!(vis)
-visualize(mechanism, storage, vis=vis, visualize_floor=false)
-# ============================================================================ #
-
-
-# ============================================================================ #
-# Generate Scissor Data
-for i in 2:10
-    mechanism = initialize_mechanism(i)
-    fixed_ids = [mechanism.bodies[1].id, mechanism.bodies[2].id]
-    mechanism.bodies[1].state.x1 = [0.0, 0.0, 0.0]
-    mechanism.bodies[1].state.q1 = Dojo.RotX(pi/2)*Dojo.RotY(pi/4)
-    mechanism.bodies[1].state.x2 = [0.0, 0.0, 0.0]
-    mechanism.bodies[1].state.q2 = Dojo.RotX(pi/2)*Dojo.RotY(pi/4)
-    mechanism.bodies[2].state.x1 = [0.0, 0.0, 0.0]
-    mechanism.bodies[2].state.q1 = Dojo.RotX(pi/2)*Dojo.RotY(-pi/4)
-    mechanism.bodies[2].state.x2 = [0.0, 0.0, 0.0]
-    mechanism.bodies[2].state.q2 = Dojo.RotX(pi/2)*Dojo.RotY(-pi/4)
-    z0 = rand(length(z0))
-    set_configuration!(mechanism, freeids, z0)
+    newtonIter = 100
     storage = Storage(newtonIter, length(mechanism.bodies))
     initialize_joint_constraints(mechanism, z0, fixedids=fixed_ids, newtonIter = newtonIter, lineIter = 10, ε = 1e-8, debug=false, vis=nothing, storage=storage)
 
-    @save "scissor_cells_$(i).jld2" mechanism storage
+    delete!(vis)
+    visualize(mechanism, storage, vis=vis, visualize_floor=false)
+    # ============================================================================ #
+
+
+    # ============================================================================ #
+    # Generate Scissor Data
+    for i in 2:10
+        mechanism = initialize_mechanism(i)
+        fixed_ids = [mechanism.bodies[1].id, mechanism.bodies[2].id]
+        mechanism.bodies[1].state.x1 = [0.0, 0.0, 0.0]
+        mechanism.bodies[1].state.q1 = Dojo.RotX(pi/2)*Dojo.RotY(pi/4)
+        mechanism.bodies[1].state.x2 = [0.0, 0.0, 0.0]
+        mechanism.bodies[1].state.q2 = Dojo.RotX(pi/2)*Dojo.RotY(pi/4)
+        mechanism.bodies[2].state.x1 = [0.0, 0.0, 0.0]
+        mechanism.bodies[2].state.q1 = Dojo.RotX(pi/2)*Dojo.RotY(-pi/4)
+        mechanism.bodies[2].state.x2 = [0.0, 0.0, 0.0]
+        mechanism.bodies[2].state.q2 = Dojo.RotX(pi/2)*Dojo.RotY(-pi/4)
+        z0 = rand(length(z0))
+        set_configuration!(mechanism, freeids, z0)
+        storage = Storage(newtonIter, length(mechanism.bodies))
+        initialize_joint_constraints(mechanism, z0, fixedids=fixed_ids, newtonIter = newtonIter, lineIter = 10, ε = 1e-8, debug=false, vis=nothing, storage=storage)
+
+        @save "scissor_cells_$(i).jld2" mechanism storage
+    end
+
+    delete!(vis)
+    visualize(mechanism, storage, vis=vis, visualize_floor=false, show_frame=true)
+    # ============================================================================ #
+
+
+    # ============================================================================ #
+    # Generate PET DATA
+    # for cells in 1:10
+    cells = 2
+        mechanism = get_PET(αs[5], cells)
+        delete!(vis)
+        visualize(mechanism, vis=vis, visualize_floor=false, show_frame=true)
+        long1 = get_body(mechanism, Symbol("long:c1:l1"))
+        long2 = get_body(mechanism, Symbol("long:c1:l2"))
+        fixed_ids = [long1.id, long2.id]
+        vect = [0, 0, L2/2]
+        q = Dojo.RotX(pi/2)*Dojo.RotY(αs[5]/2)
+        c = cs[1]
+        x = Dojo.vector_rotate(vect, q)
+        long1.state.x1 = x
+        long1.state.q1 = q
+        long1.state.x2 = x
+        long1.state.q2 = q
+
+        vect = [0, 0, L2/2]
+        q = Dojo.RotX(pi/2)*Dojo.RotY(-αs[5]/2)
+        c = cs[1]
+        x = Dojo.vector_rotate(vect, q)
+        long2.state.x1 = x
+        long2.state.q1 = q
+        long2.state.x2 = x
+        long2.state.q2 = q
+
+        freebodies, freeids = get_free_bodies(mechanism, fixedids=fixed_ids)
+        z0 = get_maximal_configuration(mechanism, freeids)
+        z0 .+= 1e-5
+        set_configuration!(mechanism, freeids, z0)
+        storage = Storage(200, length(mechanism.bodies))
+        initialize_joint_constraints(mechanism, z0, fixedids=fixed_ids, newtonIter = 200, lineIter = 10, ε = 1e-6, debug=false, vis=nothing, storage=storage)
+        delete!(vis)
+        visualize(mechanism, storage, vis=vis, visualize_floor=false, show_frame=false)
+
+        @save "PET_$(round(αs[5], digits=1))_$(cells)cells.jld2" mechanism storage
+    # end
+    # ============================================================================ #
 end
-
-delete!(vis)
-visualize(mechanism, storage, vis=vis, visualize_floor=false, show_frame=true)
-# ============================================================================ #
-
-
-# ============================================================================ #
-# Generate PET DATA
-# for cells in 1:10
-cells = 2
-    mechanism = get_PET(αs[5], cells)
-    delete!(vis)
-    visualize(mechanism, vis=vis, visualize_floor=false, show_frame=true)
-    long1 = get_body(mechanism, Symbol("long:c1:l1"))
-    long2 = get_body(mechanism, Symbol("long:c1:l2"))
-    fixed_ids = [long1.id, long2.id]
-    vect = [0, 0, L2/2]
-    q = Dojo.RotX(pi/2)*Dojo.RotY(αs[5]/2)
-    c = cs[1]
-    x = Dojo.vector_rotate(vect, q)
-    long1.state.x1 = x
-    long1.state.q1 = q
-    long1.state.x2 = x
-    long1.state.q2 = q
-
-    vect = [0, 0, L2/2]
-    q = Dojo.RotX(pi/2)*Dojo.RotY(-αs[5]/2)
-    c = cs[1]
-    x = Dojo.vector_rotate(vect, q)
-    long2.state.x1 = x
-    long2.state.q1 = q
-    long2.state.x2 = x
-    long2.state.q2 = q
-
-    freebodies, freeids = get_free_bodies(mechanism, fixedids=fixed_ids)
-    z0 = get_maximal_configuration(mechanism, freeids)
-    z0 .+= 1e-5
-    set_configuration!(mechanism, freeids, z0)
-    storage = Storage(200, length(mechanism.bodies))
-    initialize_joint_constraints(mechanism, z0, fixedids=fixed_ids, newtonIter = 200, lineIter = 10, ε = 1e-6, debug=false, vis=nothing, storage=storage)
-    delete!(vis)
-    visualize(mechanism, storage, vis=vis, visualize_floor=false, show_frame=false)
-
-    @save "PET_$(round(αs[5], digits=1))_$(cells)cells.jld2" mechanism storage
-# end
-# ============================================================================ #
-
 
 # ============================================================================ #
 # Old Code
