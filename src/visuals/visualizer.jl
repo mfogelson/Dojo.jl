@@ -63,7 +63,19 @@ function visualize(mechanism::Mechanism, storage::Storage{T,N};
                     subvisshape = nothing
                     showshape = false
                     if visshape !== nothing
-                        subvisshape = vis[name][:joints][Symbol(joint.name, "__id_$(jd)")]
+                        subvisshape = vis[name][:joints][Symbol(joint.name, "_child__id_$(jd)")]
+                        showshape = true
+                    end
+                    animate_node!(storage, id, joint_shape, animation, subvisshape, showshape, time_factor)
+                elseif joint.parent_id == body.id
+                    joint_shape = Sphere(joint_radius, 
+                        position_offset=joint.translational.vertices[1],
+                        color=RGBA(1.0, 0.0, 0.0, 0.5))
+                    visshape = convert_shape(joint_shape)
+                    subvisshape = nothing
+                    showshape = false
+                    if visshape !== nothing
+                        subvisshape = vis[name][:joints][Symbol(joint.name, "_parent__id_$(jd)")]
                         showshape = true
                     end
                     animate_node!(storage, id, joint_shape, animation, subvisshape, showshape, time_factor)
@@ -206,7 +218,19 @@ function build_robot(mechanism::Mechanism;
                     visshape = convert_shape(joint_shape)
                     subvisshape = nothing
                     if visshape !== nothing
-                        subvisshape = vis[name][:joints][Symbol(joint.name, "__id_$(jd)")]
+                        subvisshape = vis[name][:joints][Symbol(joint.name, "_child__id_$(jd)")]
+                        setobject!(subvisshape, visshape, joint_shape, 
+                            transparent=false)
+                    end
+                elseif joint.parent_id == body.id
+                    radius = joint_radius
+                    joint_shape = Sphere(radius,
+                        position_offset=joint.translational.vertices[1],
+                        color=RGBA(1.0, 0.0, 0.0, 0.5))
+                    visshape = convert_shape(joint_shape)
+                    subvisshape = nothing
+                    if visshape !== nothing
+                        subvisshape = vis[name][:joints][Symbol(joint.name, "_parent__id_$(jd)")]
                         setobject!(subvisshape, visshape, joint_shape, 
                             transparent=false)
                     end
@@ -215,6 +239,7 @@ function build_robot(mechanism::Mechanism;
         end
 
         if show_contact
+            println("here")
             for (jd, contact) in enumerate(mechanism.contacts)
                 if contact.parent_id == body.id
                     radius = abs(contact.model.collision.contact_radius)
@@ -429,10 +454,16 @@ function MeshCat.setobject!(subvisshape, visshape, shape::FrameShape; transparen
 end
 
 function MeshCat.setobject!(subvisshape, visshape, shape::Mesh; transparent=false)
-    if visshape.mtl_library == ""
+    if hasproperty(visshape, :mtl_library) && visshape.mtl_library == ""
         visshape = MeshFileGeometry(visshape.contents, visshape.format)
         setobject!(subvisshape, visshape, MeshPhongMaterial(color=(transparent ? RGBA(0.75, 0.75, 0.75, 0.5) : shape.color)))
     else
         setobject!(subvisshape, visshape)
-    end
+    end 
+    # if visshape.mtl_library == ""
+    #     visshape = MeshFileGeometry(visshape.contents, visshape.format)
+    #     setobject!(subvisshape, visshape, MeshPhongMaterial(color=(transparent ? RGBA(0.75, 0.75, 0.75, 0.5) : shape.color)))
+    # else
+    #     setobject!(subvisshape, visshape)
+    # end
 end

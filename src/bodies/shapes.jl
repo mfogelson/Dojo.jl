@@ -361,7 +361,15 @@ function convert_shape(frame::FrameShape)
 end
 
 function convert_shape(mesh::Mesh)
-    return MeshFileObject(mesh.path)
+    ext = lowercase(splitext(mesh.path)[2])
+    if ext ∈ (".obj", ".dae")
+        return MeshFileObject(mesh.path)
+    elseif ext == ".stl"
+        return MeshFileGeometry(open(read, mesh.path), ext[2:end])
+    else
+        error("Unsupported mesh file type")
+    end
+    return nothing 
 end
 
 function convert_shape(::EmptyShape)
