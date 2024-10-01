@@ -32,7 +32,7 @@ end
 function optimize_configuration(; VEHICAL_NAME, DIAMETER, MASS, INITIAL_HEIGHT, EXPANDED_HEIGHT, STATES=5, DENSITY=2710.0)
     # model = Model(Ipopt.Optimizer)
     ipopt = optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0)
-    highs = optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false)
+    highs = optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => true)
     model = Model(
         optimizer_with_attributes(
             Juniper.Optimizer,
@@ -137,7 +137,7 @@ function optimize_configuration(; VEHICAL_NAME, DIAMETER, MASS, INITIAL_HEIGHT, 
     @NLconstraint(model, a[1] <= DIAMETER)
     @NLconstraint(model, scissor_length[1] <= INITIAL_HEIGHT)
     @NLconstraint(model, scissor_length[STATES] >= EXPANDED_HEIGHT)
-    @NLconstraint(model, n*10 <= 750000)
+    # @NLconstraint(model, n*10 <= 750000)
     @NLconstraint(model, θ[1] == cos(pi*0.95))
     @NLconstraint(model, θ[STATES] == cos(pi/3))
 
@@ -173,7 +173,7 @@ function optimize_configuration(; VEHICAL_NAME, DIAMETER, MASS, INITIAL_HEIGHT, 
     # CSV.write("/Users/mitchfogelson/Downloads/$(VEHICAL_NAME)_HERDS_finalState.csv", df, writeheader=false)
 
     # Define changes: PET_global_params.csv
-    df = CSV.File("/Users/mitchfogelson/Downloads/PET_global_params.csv", header=["name", "units", "value"]) |> DataFrame
+    df = CSV.File("PET_global_params.csv", header=["name", "units", "value"]) |> DataFrame
 
     changes = Dict("l1" => value(l1), "l2" => value(l2), "l3" => value(l3), "l2l3" => (value(l3)+value(l2)), "thickness" => value(thickness)*1000.0, "alpha" => (value(α[1])), "beta" => (value(β[1])), "n"=>value(n))
 
@@ -181,7 +181,7 @@ function optimize_configuration(; VEHICAL_NAME, DIAMETER, MASS, INITIAL_HEIGHT, 
     update_dataframe!(df, :name, :value, changes)
 
     # Save the modified DataFrame to a new CSV file
-    CSV.write("/Users/mitchfogelson/Downloads/$(VEHICAL_NAME)_PET_only_initialState_mass.csv", df, writeheader=false)
+    CSV.write("$(VEHICAL_NAME)_PET_only_initialState_mass.csv", df, writeheader=false)
 
     changes = Dict("l1" => value(l1), "l2" => value(l2), "l3" => value(l3), "l2l3" => (value(l3)+value(l2)), "thickness" => value(thickness)*1000.0, "alpha" => (value(α[STATES])), "beta" => (value(β[STATES])), "n"=>value(n))
 
@@ -189,7 +189,7 @@ function optimize_configuration(; VEHICAL_NAME, DIAMETER, MASS, INITIAL_HEIGHT, 
     update_dataframe!(df, :name, :value, changes)
 
     # Save the modified DataFrame to a new CSV file
-    CSV.write("/Users/mitchfogelson/Downloads/$(VEHICAL_NAME)_PET_only_finalState_mass.csv", df, writeheader=false)
+    CSV.write("$(VEHICAL_NAME)_PET_only_finalState_mass.csv", df, writeheader=false)
 
     # TODO: Fix this Save model to file 
     # write_to_file(model, "model_$VEHICAL_NAME.mof.json")
@@ -214,6 +214,14 @@ function optimize_configuration(; VEHICAL_NAME, DIAMETER, MASS, INITIAL_HEIGHT, 
     println("Objective value: ", @sprintf("%.2e", objective_value(model)))
 
 end
+
+input_params_merritt = Dict(:VEHICAL_NAME => "merritt", 
+                    :DIAMETER => 2.5, 
+                    :MASS => 10.0*1000.0, 
+                    :INITIAL_HEIGHT => 3.0, 
+                    :EXPANDED_HEIGHT => 30.5, 
+                    :STATES => 10)
+optimize_configuration(; input_params_merritt...)
 
 input_params_falcon = Dict(:VEHICAL_NAME => "falcon", 
                     :DIAMETER => 3.4, 

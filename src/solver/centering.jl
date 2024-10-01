@@ -10,8 +10,10 @@ function centering!(mechanism::Mechanism, αaff::T) where T
         centering!(parameters, joint, get_entry(system, joint.id), αaff)
     end
 
-    ν = parameters[1][1]/parameters[1][3]
-    νaff = parameters[1][2]/parameters[1][3]
+    # println(parameters)
+
+    ν =  abs(parameters[1][3]) >  eps() ? parameters[1][1]/parameters[1][3] : 0.0 # parameters[1][1]/parameters[1][3]
+    νaff = abs(parameters[1][3]) >  eps() ? parameters[1][2]/parameters[1][3] : 0.0 #parameters[1][2]/parameters[1][3]
     return ν, νaff
 end
 

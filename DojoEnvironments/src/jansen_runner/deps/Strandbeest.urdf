@@ -53,7 +53,7 @@
     </visual>
   </link>
   <joint name="joint_crossbar_crank" type="continuous">
-    <axis xyz="0 1 0"/>
+    <axis xyz="0 0 1"/>
     <parent link="crossbar"/>
     <child link="crank_axle"/>
     <origin rpy="0 0 0" xyz="0 0 0.078"/>
@@ -167,7 +167,7 @@
     <origin rpy="0 0 0" xyz="0 0 0.619"/>
     <limit effort="0" lower="1.57079632679" upper="3.14159265359" velocity="1000"/>
   </joint>
-  <link name="pair01_leg1_bars_g_h_i">
+  <!-- <link name="pair01_leg1_bars_g_h_i">
     <inertial>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <mass value="1"/>
@@ -212,7 +212,7 @@
     <axis xyz="0 1 0"/>
     <link1 link="pair01_leg1_bar_f" rpy="0 0 0" xyz="0 0 0.394"/>
     <link2 link="pair01_leg1_bars_g_h_i" rpy="0 0 0" xyz="0.3624 0 -0.0582"/>
-  </loop_joint>
+  </loop_joint> -->
   <link name="pair01_leg1_bars_b_d_e">
     <inertial>
       <origin rpy="0 0 0" xyz="0 0 0"/>
@@ -253,7 +253,7 @@
     <origin rpy="0 0 0" xyz="0 0 0.50"/>
     <limit effort="0" lower="-1.9" upper="-1.0" velocity="1000"/>
   </joint>
-  <link name="pair01_leg1_bar_f">
+  <!-- <link name="pair01_leg1_bar_f">
     <inertial>
       <origin rpy="0 0 0" xyz="0 0 0.197"/>
       <mass value="1"/>
@@ -266,14 +266,14 @@
       </geometry>
       <material name="#2F4858"/>
     </visual>
-  </link>
-  <joint name="pair01_leg1_joint_e_f" type="revolute">
-    <axis xyz="0 1 0"/>
+  </link> -->
+  <!-- <joint name="pair01_leg1_joint_e_f" type="revolute"> -->
+    <!-- <axis xyz="0 1 0"/>
     <parent link="pair01_leg1_bars_b_d_e"/>
     <child link="pair01_leg1_bar_f"/>
     <origin rpy="0 0 0" xyz="0 0 0.558"/>
     <limit effort="0" lower="-1.7" upper="0.4" velocity="1000"/>
-  </joint>
+  </joint> -->
   <loop_joint name="pair01_leg1_loop_a_c" type="continuous">
     <axis xyz="0 1 0"/>
     <link1 link="pair01_bar_a" rpy="0 0 0" xyz="0 0 0.38"/>

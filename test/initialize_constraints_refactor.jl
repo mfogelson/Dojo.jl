@@ -188,8 +188,9 @@ function newton_step(stepvec::AbstractVector, mechanism::Mechanism, freeids; t =
         dq *= t
 
         dq_norm = norm(dq)
-        if dq_norm > 1.0
-            dq *= (1.0 / dq_norm)
+        norm_scale = 0.5
+        if dq_norm > norm_scale
+            dq *= (norm_scale / dq_norm)
             if debug
                 println(dq_norm)
             end
@@ -306,13 +307,18 @@ function initialize_joint_constraints(mechanism::Mechanism{T}, z0::AbstractVecto
             println("Converged: Iteration $i | Residual norm: $residual_norm | Objective function: $objective_function_val")
             break
         end
+
+        if i == newtonIter
+            residual_norm = norm(get_residual(mechanism, freeids, z))
+            objective_function_val = objective_function(mechanism, freebodies,freeids, jac, joint_idx, body_idx, z, zero_dz)
+            println("DID NOT CONVERGE: Residual norm: $residual_norm | Objective function: $objective_function_val")
+        end
     end
-    residual_norm = norm(get_residual(mechanism, freeids, z))
-    objective_function_val = objective_function(mechanism, freebodies,freeids, jac, joint_idx, body_idx, z, zero_dz)
-    println("DID NOT CONVERGE: Residual norm: $residual_norm | Objective function: $objective_function_val")
+
+ 
     return storage
 end
-
+vis = Visualizer()
 # ============================================================================ #
 # Generate Jansen Data
 
@@ -328,31 +334,82 @@ initialize_joint_constraints(mechanism, z0, fixedids=fixed_ids, newtonIter = new
 delete!(vis)
 visualize(mechanism, storage, vis=vis, visualize_floor=false)
 # ============================================================================ #
+# ============================================================================ #
+# Generate small Jansen Data
+
+mechanism = make_jansen_pair(6)
+fixed_ids = get_fixed_ids(mechanism)
+freebodies, freeids = get_free_bodies(mechanism,fixedids=fixed_ids)
+@time z0 = get_maximal_configuration(mechanism, freeids) #.+ 1e-5
+
+newtonIter = 200
+storage = Storage(newtonIter, length(mechanism.bodies))
+@time initialize_joint_constraints(mechanism, z0, fixedids=fixed_ids, newtonIter = newtonIter, lineIter = 10, ε = 1e-6, debug=false, vis=nothing, storage=storage)
+
+delete!(vis)
+visualize(mechanism, storage, vis=vis, visualize_floor=false, show_frame=true)
+
+z0 = get_maximal_configuration(mechanism, freeids)
+
+
+set_minimal_coordinates!(mechanism, get_joint(mechanism, :joint_crossbar_crank), [1.0])
+visualize(mechanism, vis=vis, visualize_floor=false, show_frame=true)
 
 
 # ============================================================================ #
 # Generate Scissor Data
-for i in 2:10
-    mechanism = initialize_mechanism(i)
-    fixed_ids = [mechanism.bodies[1].id, mechanism.bodies[2].id]
-    mechanism.bodies[1].state.x1 = [0.0, 0.0, 0.0]
-    mechanism.bodies[1].state.q1 = Dojo.RotX(pi/2)*Dojo.RotY(pi/4)
-    mechanism.bodies[1].state.x2 = [0.0, 0.0, 0.0]
-    mechanism.bodies[1].state.q2 = Dojo.RotX(pi/2)*Dojo.RotY(pi/4)
-    mechanism.bodies[2].state.x1 = [0.0, 0.0, 0.0]
-    mechanism.bodies[2].state.q1 = Dojo.RotX(pi/2)*Dojo.RotY(-pi/4)
-    mechanism.bodies[2].state.x2 = [0.0, 0.0, 0.0]
-    mechanism.bodies[2].state.q2 = Dojo.RotX(pi/2)*Dojo.RotY(-pi/4)
-    z0 = rand(length(z0))
-    set_configuration!(mechanism, freeids, z0)
-    storage = Storage(newtonIter, length(mechanism.bodies))
-    initialize_joint_constraints(mechanism, z0, fixedids=fixed_ids, newtonIter = newtonIter, lineIter = 10, ε = 1e-8, debug=false, vis=nothing, storage=storage)
+# for i in 2:10
+i = 3
+mechanism = initialize_mechanism(i)
+fixed_ids = [mechanism.bodies[1].id, mechanism.bodies[2].id]
+freebodies, freeids = get_free_bodies(mechanism,fixedids=fixed_ids)
+mechanism.bodies[1].state.x1 = [0.0, 0.0, 0.0]
+mechanism.bodies[1].state.q1 = Dojo.RotX(pi/2)*Dojo.RotY(pi/4)
+mechanism.bodies[1].state.x2 = [0.0, 0.0, 0.0]
+mechanism.bodies[1].state.q2 = Dojo.RotX(pi/2)*Dojo.RotY(pi/4)
+mechanism.bodies[2].state.x1 = [0.0, 0.0, 0.0]
+mechanism.bodies[2].state.q1 = Dojo.RotX(pi/2)*Dojo.RotY(-pi/4)
+mechanism.bodies[2].state.x2 = [0.0, 0.0, 0.0]
+mechanism.bodies[2].state.q2 = Dojo.RotX(pi/2)*Dojo.RotY(-pi/4)
 
-    @save "scissor_cells_$(i).jld2" mechanism storage
+using Dojo: Joint
+function test_where(joint::Joint{T,Nλ,Nb}) where {T,Nλ,Nb}
+    println(Nλ)
+    println(Nb)
+end
+test_where(joint.rotational)
+
+Dojo.set_entries!(mechanism)
+for joint in mechanism.joints
+    joint_t = joint.translational
+    println(joint.impulses[2][Dojo.joint_impulse_index(joint,1)])
+    s, γ = Dojo.split_impulses(joint_t, joint.impulses[2][Dojo.joint_impulse_index(joint,1)])
+    println(s)
+
+    joint_r = joint.rotational
+    s, γ = Dojo.split_impulses(joint_r, joint.impulses[2][Dojo.joint_impulse_index(joint,2)])
+    println(s)
 end
 
-delete!(vis)
+@time storage = Dojo.simulate!(mechanism, 5*mechanism.timestep, verbose=true, record=true)
 visualize(mechanism, storage, vis=vis, visualize_floor=false, show_frame=true)
+
+
+z0 = get_maximal_configuration(mechanism, freeids)
+z0 = rand(length(z0))
+set_configuration!(mechanism, freeids, z0)
+newtonIter = 100
+storage = Storage(newtonIter, length(mechanism.bodies))
+initialize_joint_constraints(mechanism, z0, fixedids=fixed_ids, newtonIter = newtonIter, lineIter = 10, ε = 1e-8, debug=false, vis=nothing, storage=storage)
+Dojo.set_minimal_coordinates!(mechanism, get_joint(mechanism, :joint_pairs1), [-pi/2])
+z0 = get_maximal_configuration(mechanism, freeids)
+initialize_joint_constraints(mechanism, z0, fixedids=fixed_ids, newtonIter = newtonIter, lineIter = 10, ε = 1e-8, debug=false, vis=nothing, storage=storage)
+visualize(mechanism, vis=vis, visualize_floor=false, show_frame=true)
+
+# @save "scissor_cells_$(i).jld2" mechanism storage
+# end
+
+# delete!(vis)
 # ============================================================================ #
 
 

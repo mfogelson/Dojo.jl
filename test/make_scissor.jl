@@ -5,7 +5,7 @@ function make_body(unit_thickness::Float64, unit_length::Float64, unit_mass::Flo
 end
 
 function make_joint(parent::Body, child::Body, rotation_axis::Vector{Float64}, parent_vertex::Vector{Float64}, child_vertex::Vector{Float64}, name::Symbol)
-    return JointConstraint(Revolute(parent, child, rotation_axis; parent_vertex=parent_vertex, child_vertex=child_vertex, orientation_offset=Dojo.RotY(pi)), name=name)
+    return JointConstraint(Revolute(parent, child, rotation_axis; parent_vertex=parent_vertex, child_vertex=child_vertex, orientation_offset=Dojo.RotY(0)), name=name)
 end
 
 function initialize_mechanism()
