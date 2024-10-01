@@ -26,7 +26,7 @@ function get_snake(;
     joints = JointConstraint{T}[
         jointb1;
         [
-            JointConstraint(Dojo.Prototype(joint_type, bodies[i - 1], bodies[i], X_AXIS;
+            JointConstraint(Dojo.Prototype(joint_type, bodies[i - 1], bodies[i], Z_AXIS;
             parent_vertex=-X_AXIS*link_length/2, child_vertex=X_AXIS*link_length/2)) for i = 2:num_bodies
         ]
     ]
