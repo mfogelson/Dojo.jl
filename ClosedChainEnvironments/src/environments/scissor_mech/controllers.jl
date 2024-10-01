@@ -83,7 +83,7 @@ function spring_controller!(mechanism, k)
 
         control_torque = control_force * link_length / 2
 
-        println(control_force)
+        # println(control_force)
 
         # add_external_force!(body1, force=Dojo.vector_rotate([0, -control_force/2, 0], body1.state.q2'), vertex=[0, 0, link_length/2])
         # add_external_force!(body2, force=Dojo.vector_rotate([0, control_force/2, 0], body2.state.q2'), vertex=[0, 0, link_length/2])

@@ -35,8 +35,15 @@ end
 
 # Compute residuals between simulated and target trajectories
 function compute_residuals(damping, target_trajectory, duration, num_steps)
-    mech = create_snake(dampers=damping)
-    simulated_trajectory = simulate_snake(mech, duration, num_steps)
+    # mech = create_snake(dampers=damping)
+    # simulated_trajectory = simulate_snake(mech, duration, num_steps)
+    mech = get_scissor_mechanism(num_sets=10, damper=damping, initial_angle=-pi*8/10, slop=0.001)
+    simulated_trajectory = Storage(num_steps, length(mech.bodies))
+    simulated_trajectory = simulate!(mech, 1:num_steps, simulated_trajectory, spring_controller!, 
+            record=true, 
+            opts=SolverOptions(rtol=1e-5, btol=1e-4, reg=1e-8, verbose=false, svd_threshold=1e-6),
+            abort_upon_failure=true,
+            solver=Dojo.mehrotra_svd!)
     simulated_positions = extract_positions(simulated_trajectory.x)
     target_positions = extract_positions(target_trajectory)
     
@@ -52,14 +59,24 @@ function objective(damping, target_trajectory, duration, num_steps)
 end
 
 # Function to estimate damping using LBFGS
-function estimate_damping(target_trajectory, duration, num_steps; initial_damping=99.0)
+# function estimate_damping(target_trajectory, duration, num_steps; initial_damping=0.1)
+#     obj = (damping) -> objective(damping, target_trajectory, duration, num_steps)
+#     result = optimize(obj, [initial_damping], LBFGS(), Optim.Options(show_trace = true))
+#     return Optim.minimizer(result)[1]
+# end
+function estimate_damping(target_trajectory, duration, num_steps; initial_damping=0.1, initial_angle=-pi*9/10)
     obj = (damping) -> objective(damping, target_trajectory, duration, num_steps)
-    result = optimize(obj, [initial_damping], LBFGS(), Optim.Options(show_trace = true))
-    return Optim.minimizer(result)[1]
+    
+    # Set up custom stopping criteria
+    options = Optim.Options(show_trace = true, g_tol = 1e-4, x_tol = 1e-6, f_tol = 1e-6)
+    
+    return optimize(obj, [initial_damping], LBFGS(), options)
+    
 end
 
 # Generate synthetic data
 true_damping = 1000.0
+true_angle
 duration = 1.0
 num_steps = 100
 mech_true = create_snake(dampers=true_damping)
@@ -112,3 +129,24 @@ final_jacobians = Dojo.body_constraint_jacobian_body_data(final_mech, pbody, cbo
 println("Constraint Jacobians:")
 println("Parent wrt Parent: ", final_jacobians[1])
 println("Parent wrt Child: ", final_jacobians[2])
+
+include("scissor_mechanism.jl")
+include("controllers.jl")
+true_damping = 0.001
+true_angle = -pi*8/10
+true_scissor = get_scissor_mechanism(num_sets=10, initial_angle=true_angle, damper=true_damping, slop=0.001)
+
+steps = 60
+storage = Storage(steps, length(true_scissor.bodies))
+    
+simulate!(true_scissor, 1:steps, storage, spring_controller!, 
+            record=true, 
+            opts=SolverOptions(rtol=1e-5, btol=1e-4, reg=1e-8, verbose=false, svd_threshold=1e-6),
+            abort_upon_failure=true,
+            solver=Dojo.mehrotra_svd!)
+
+vis = Visualizer()
+vis = visualize(true_scissor, storage, vis=vis, visualize_floor=false, show_joint=true, joint_radius=0.01, show_frame=true)
+
+# Estimate damping
+estimated_damping = estimate_damping(storage.x, steps*true_scissor.timestep, steps, initial_damping=0.01)

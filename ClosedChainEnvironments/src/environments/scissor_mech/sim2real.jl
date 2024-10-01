@@ -108,10 +108,11 @@ for step in 1:steps
 end
 
 # Load and process real data
-real_data = load_real_data("/Users/mitchfogelson/Projects/Research_Projects/co-tracker/videos/pred_tracks_formatted.csv")
+data_filepath = "/Users/mitchfogelson/Projects/Research_Projects/co-tracker/paper_data/video_1/csv/pred_tracks_formatted.csv"
+real_data = load_real_data(data_filepath)
 
 #plot real data and label the scatter points
-scatter(real_data[end, :, 1]*5.5 .-0.01, real_data[end, :, 2]*5.5 .- 0.07, 
+scatter(real_data[end, :, 1].-real_data[end,1,1], real_data[end, :, 2].-real_data[end,1,2], 
         label="Real", xlabel="x (m)", ylabel="z (m)", 
         title="Scissor Mechanism Position - Frame 1", 
         legend=:topleft, aspect_ratio=:equal,
