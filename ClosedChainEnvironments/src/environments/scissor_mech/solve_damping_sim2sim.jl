@@ -64,13 +64,15 @@ end
 #     result = optimize(obj, [initial_damping], LBFGS(), Optim.Options(show_trace = true))
 #     return Optim.minimizer(result)[1]
 # end
-function estimate_damping(target_trajectory, duration, num_steps; initial_damping=0.1, initial_angle=-pi*9/10)
+function estimate_damping(target_trajectory, duration, num_steps; initial_damping=0.1, initial_angle=-pi*8/10)
     obj = (damping) -> objective(damping, target_trajectory, duration, num_steps)
     
     # Set up custom stopping criteria
-    options = Optim.Options(show_trace = true, g_tol = 1e-4, x_tol = 1e-6, f_tol = 1e-6)
-    
-    return optimize(obj, [initial_damping], LBFGS(), options)
+    options = Optim.Options(show_trace = true, g_tol = 1e-5, x_tol = 1e-5, f_tol = 1e-5)
+    lb = [0.000001]
+    ub = [1.0]
+    result = optimize(obj, lb, ub, [initial_damping], Fminbox(LBFGS()), options)
+    return result, Optim.minimizer(result)[1]
     
 end
 
@@ -134,19 +136,19 @@ include("scissor_mechanism.jl")
 include("controllers.jl")
 true_damping = 0.001
 true_angle = -pi*8/10
-true_scissor = get_scissor_mechanism(num_sets=10, initial_angle=true_angle, damper=true_damping, slop=0.001)
+@time true_scissor = get_scissor_mechanism(num_sets=10, initial_angle=true_angle, damper=true_damping, slop=0.001)
 
 steps = 60
 storage = Storage(steps, length(true_scissor.bodies))
     
-simulate!(true_scissor, 1:steps, storage, spring_controller!, 
+@time simulate!(true_scissor, 1:steps, storage, spring_controller!, 
             record=true, 
             opts=SolverOptions(rtol=1e-5, btol=1e-4, reg=1e-8, verbose=false, svd_threshold=1e-6),
             abort_upon_failure=true,
             solver=Dojo.mehrotra_svd!)
 
 vis = Visualizer()
-vis = visualize(true_scissor, storage, vis=vis, visualize_floor=false, show_joint=true, joint_radius=0.01, show_frame=true)
+vis = visualize(true_scissor, storage, vis=vis, visualize_floor=false, show_joint=true, joint_radius=0.005, show_frame=true)
 
 # Estimate damping
 estimated_damping = estimate_damping(storage.x, steps*true_scissor.timestep, steps, initial_damping=0.01)

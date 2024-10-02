@@ -81,9 +81,9 @@ end
 
 # Extract positions from state trajectory
 function extract_positions(trajectory)
-    positions = zeros(Float64, length(trajectory.x[1]), 3*convert(Int, length(trajectory.x)/2)-1, 2)
+    positions = zeros(Float64, length(trajectory.x[1]), 3*convert(Int, length(trajectory.x)/2)+1, 2)
     for j in 1:length(trajectory.x[1])
-        for i in 1:convert(Int, 23)
+        for i in 1:convert(Int, 3)
             center = trajectory.x[2*i-1][j]
             top_right = trajectory.x[2*i-1][j] + Dojo.rotation_matrix(trajectory.q[2*i-1][j]) * [0, 0, 0.045/2]
             top_left = trajectory.x[2*i-1][j] + Dojo.rotation_matrix(trajectory.q[2*i-1][j]) * [0, 0, -0.045/2]
@@ -95,8 +95,8 @@ function extract_positions(trajectory)
                 # positions[j, 3, :] = [top_left[3], top_left[2]]
                 positions[j, 3, :] = [bottom_right[3], bottom_right[2]]
                 positions[j, 4, :] = [bottom_left[3], bottom_left[2]]
-            elseif i == 23
-                positions[j, end, :] = [center[3], center[2]]
+            # elseif i == 3
+            #     positions[j, end, :] = [center[3], center[2]]
             else           
                 positions[j, 3*(i-1)+1+1, :] = [center[3], center[2]]
                 positions[j, 3*(i-1)+2+1, :] = [top_right[3], top_right[2]]
@@ -108,27 +108,30 @@ function extract_positions(trajectory)
 end
 
 # Compute residuals between simulated and target trajectories
-function compute_residuals(damping, angle, target_positions, duration, num_steps)
+function compute_residuals(damping, target_positions, duration, num_steps)
     # mech = create_snake(dampers=damping)
     # simulated_trajectory = simulate_snake(mech, duration, num_steps)
-    mech = get_scissor_mechanism(num_sets=23, damper=damping, initial_angle=angle, timestep=duration/num_steps, slop=0.00089)
+    mech = get_scissor_mechanism(num_sets=3, damper=damping, initial_angle=-pi*9/10, timestep=duration/num_steps, slop=0.00089)
     simulated_trajectory = Storage(num_steps, length(mech.bodies))
     simulated_trajectory = simulate!(mech, 1:num_steps, simulated_trajectory, spring_controller!, 
             record=true, 
             opts=SolverOptions(rtol=1e-5, btol=1e-4, reg=1e-8, verbose=false, svd_threshold=1e-6),
-            abort_upon_failure=true,
+            abort_upon_failure=false,
             solver=Dojo.mehrotra_svd!)
 
     simulated_positions = extract_positions(simulated_trajectory)
+    sorted_simulated_data_inds = sortperm(simulated_positions[1, :, 1])
+    sorted_simulated_data = simulated_positions[:, sorted_simulated_data_inds, :]
     # target_positions = extract_positions(target_trajectory)
     
     #TODO fix this so that it works with the scissor mechanism real data
     # Sort real and simulated data
-    sorted_real_data_ind, sorted_simulated_data_ind = sort_by_x_within_z_sets(target_positions[1, :, :].-reshape(target_positions[1,1,:], 1, 2), simulated_positions[1, :, :])
-    sorted_real_data = target_positions[:, sorted_real_data_ind, :]
-    sorted_simulated_data = simulated_positions[:, sorted_simulated_data_ind, :]
+    # sorted_real_data_ind, sorted_simulated_data_ind = sort_by_x_within_z_sets(target_positions[1, :, :].-reshape(target_positions[1,1,:], 1, 2), simulated_positions[1, :, :])
+    # sorted_real_data = target_positions[:, sorted_real_data_ind, :]
+    # sorted_simulated_data = simulated_positions[:, sorted_simulated_data_ind, :]
     #flatten the data
-    residuals = sorted_simulated_data - sorted_real_data
+    # residuals = sorted_simulated_data - sorted_real_data
+    residuals = sorted_simulated_data - target_positions
     residuals = reshape(residuals, size(residuals)[1], size(residuals)[2]*size(residuals)[3])
 
     # residuals = vcat([sim - target for (sim, target) in zip(simulated_positions, target_positions)]...)
@@ -138,7 +141,7 @@ end
 
 # Objective function for optimization
 function objective(damping_angle, target_trajectory, duration, num_steps)
-    residuals = compute_residuals(damping_angle[1], damping_angle[2], target_trajectory, duration, num_steps)
+    residuals = compute_residuals(damping_angle[1], target_trajectory, duration, num_steps)
     return dot(residuals, residuals)
 end
 
@@ -152,29 +155,38 @@ function estimate_damping(target_trajectory, duration, num_steps; initial_dampin
     obj = (damping_angle) -> objective(damping_angle, target_trajectory, duration, num_steps)
     
     # Set up custom stopping criteria
-    options = Optim.Options(show_trace = true, g_tol = 1e-4, x_tol = 1e-6, f_tol = 1e-6)
-    
-    result = optimize(obj, [initial_damping, initial_angle], LBFGS(), options)
+    options = Optim.Options(show_trace = true, g_tol = 1e-5, x_tol = 1e-5, f_tol = 1e-5)
+    lb = [0.000001]
+    ub = [1.0]
+    result = optimize(obj, lb, ub, [initial_damping], Fminbox(LBFGS()), options)
     return result, Optim.minimizer(result)[1]
 end
 
 # Load and process real data
-data_filepath = "/Users/mitchfogelson/Projects/Research_Projects/co-tracker/paper_data/video_1/csv/pred_tracks_formatted.csv"
+data_filepath = "/home/rexlab/Projects/co-tracker/paper_data/video_1/csv/pred_tracks_formatted.csv"
 real_data = load_real_data(data_filepath)
 steps = size(real_data)[1]
 timestep = 1.0/240
 frame = 1
 #plot real data and label the scatter points
-scatter(real_data[frame, 1:10, 1].-real_data[frame,1,1], real_data[frame, 1:10, 2].-real_data[frame,1,2], 
-        label="Real", xlabel="x (m)", ylabel="z (m)", 
+scatter(sorted_real_data[frame, 1:10, 1].-sorted_real_data[frame,2,1], sorted_real_data[frame, 1:10, 2].-sorted_real_data[frame,2,2], 
+        label="", xlabel="x (m)", ylabel="z (m)", 
         title="Scissor Mechanism Position - Frame 1", 
         legend=:topleft, aspect_ratio=:equal,
         markersize=6, color=:blue)
 
-# Estimate damping
-estimated_damping = estimate_damping(real_data, steps*timestep, steps, initial_damping=0.001)
+# sort real data by x value 
+sorted_real_data_inds = sortperm(real_data[frame, :, 1])
+sorted_real_data = real_data[:, sorted_real_data_inds, :]
 
-mech = get_scissor_mechanism(num_sets=23, damper=0.01, initial_angle=-2.4824251646528257, timestep=timestep)
+small_set = sorted_real_data[:, 1:10, :] .- reshape(sorted_real_data[1, 2, :], 1, 1, 2)
+small_set[:, 6, :] = small_set[:, 7, :]
+small_set[:, 7, :] = sorted_real_data[:, 6, :] .- sorted_real_data[1, 2, :]'
+
+# Estimate damping
+estimated_damping = estimate_damping(small_set, steps*timestep, steps, initial_damping=0.001, initial_angle=-2.4824251646528257)
+
+mech = get_scissor_mechanism(num_sets=3, damper=estimated_damping[1].minimizer[1], initial_angle=-2.4824251646528257, timestep=timestep)
 simulated_trajectory = Storage(steps, length(mech.bodies))
 simulated_trajectory = simulate!(mech, 1:steps, simulated_trajectory, spring_controller!, 
         record=true, 
@@ -183,14 +195,25 @@ simulated_trajectory = simulate!(mech, 1:steps, simulated_trajectory, spring_con
         solver=Dojo.mehrotra_svd!)
 
 simulated_positions = extract_positions(simulated_trajectory)
-
+# sort simulated data by x value
+sorted_simulated_data_inds = sortperm(simulated_positions[1, :, 1])
+sorted_simulated_data = simulated_positions[:, sorted_simulated_data_inds, :]
+frame = 60
 scatter!(simulated_positions[frame, :, 1].-simulated_positions[frame,1,1], simulated_positions[frame, :, 2].-simulated_positions[frame,1,2], 
         label="sim", xlabel="x (m)", ylabel="z (m)", 
         title="Scissor Mechanism Position - Frame 1", 
         legend=:topleft, aspect_ratio=:equal,
         markersize=6, color=:red)
 
-
+Dojo.norm(sorted_simulated_data - small_set)^2
+# plot the connections
+for i in 1:10
+    plot!([small_set[frame, i, 1], sorted_simulated_data[frame, i, 1]], [small_set[frame, i, 2], sorted_simulated_data[frame, i, 2]], color=:blue)
+    # plot!([sorted_simulated_data[frame, i, 1], sorted_simulated_data[frame, i+1, 1]], [sorted_simulated_data[frame, i, 2], sorted_simulated_data[frame, i+1, 2]], color=:red)
+end
+plot!()
+#switch column 6 and 7 to get the correct data
+small_set = 
 # Sort real and simulated data
 sorted_real_data_inds, sorted_simulated_data_inds = sort_by_x_within_z_sets(real_data[frame, :, :].-reshape(real_data[frame,1,:], 1, 2), simulated_positions[frame, :, :])
 
