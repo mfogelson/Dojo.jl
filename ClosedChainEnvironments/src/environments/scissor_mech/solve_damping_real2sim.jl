@@ -115,7 +115,7 @@ function compute_residuals(damping, target_positions, duration, num_steps)
     simulated_trajectory = Storage(num_steps, length(mech.bodies))
     simulated_trajectory = simulate!(mech, 1:num_steps, simulated_trajectory, spring_controller!, 
             record=true, 
-            opts=SolverOptions(rtol=1e-5, btol=1e-4, reg=1e-8, verbose=false, svd_threshold=1e-6),
+            opts=SolverOptions(rtol=1e-5, btol=1e-4, reg=1e-8, verbose=false, svd_threshold=1e-6, undercut=1.0),
             abort_upon_failure=false,
             solver=Dojo.mehrotra_svd!)
 

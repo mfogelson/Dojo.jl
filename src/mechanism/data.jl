@@ -64,6 +64,7 @@ get_data(mechanism::Mechanism) = vcat([get_data.(mechanism.joints);
 
 # Joints
 function get_data(joint::JointConstraint)
+	#! Mitch - I think this is wrong
 	joints = (joint.translational, joint.rotational)
 	u = vcat(nullspace_mask.(joints) .* getfield.(joints, :input)...)
 	spring = joints[1].spring # assumes we have the same spring and dampers for translational and rotational joint.

@@ -63,6 +63,8 @@ Parameters:
 - k: Current timestep (unused in this controller)
 """
 function spring_controller!(mechanism, k)
+    # save the current mechanism
+    save("/Users/mitchfogelson/.julia/dev/Dojo.jl/paper_data/Scissor_jamming/joint_impulses/mechanism_step_$(k).jld2", "mechanism", mechanism)
     l0 = 0.010 # resting length of the spring (m)
     num_cells = 2
     link_length = mechanism.bodies[1].shape.rh[2]  # This should be parameterized

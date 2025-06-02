@@ -24,7 +24,7 @@ function visualize(mechanism::Mechanism, storage::Storage{T,N};
     name::Symbol=:robot,
     return_animation=false,
     visualize_floor=true) where {T,N}
-
+    
     storage = deepcopy(storage)
     bodies = mechanism.bodies
     origin = mechanism.origin

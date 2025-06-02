@@ -369,11 +369,125 @@ main()
 
 
 # mechanism, storage = load("linkage_slop_data/scissor_slop/scissor_cells_20_slope_0.003_theta0_-2.83_2024-09-12T08:03:36.199.jld2", "mechanism", "storage");
-mechanism, storage = load("linkage_slop_data/scissor_slop/scissor_cells_3_slope_0.004_theta0_-2.83_2024-09-11T22:39:35.902.jld2", "mechanism", "storage");
+# mechanism, storage = load("linkage_slop_data/scissor_slop/scissor_cells_3_slope_0.004_theta0_-2.83_2024-09-11T22:39:35.902.jld2", "mechanism", "storage");
+mechanism, storage = load("paper_data/Scissor_jamming/09_25_2024_23_cell_0.01_damp_0.001_slop_scissor_mechanism.jld2", "mechanism", "storage");
+
+save("paper_data/Scissor_jamming/10_3_2024_23_cell_0.01_damp_0.001_slop_scissor_mechanism.jld2", "mechanism", mechanism, "storage", combine_storage)
+
+mechanism, combine_storage = load("paper_data/Scissor_jamming/10_3_2024_23_cell_0.01_damp_0.001_slop_scissor_mechanism.jld2", "mechanism", "storage");
+vis
+delete!(vis)
+visualize(mechanism, storage; vis=vis, visualize_floor=false, show_frame=true)
+function set_maximal_state!(mechanism::Mechanism, storage::Storage; ind=1)
+    for (body, x, q, ω, v) in zip(mechanism.bodies, storage.x, storage.q, storage.ω, storage.v)
+        body.state.x1 = x[ind]
+        body.state.x2 = x[ind]
+        body.state.q1 = q[ind]
+        body.state.q2 = q[ind]
+        body.state.ω15 = ω[ind]
+        body.state.v15 = v[ind]
+        body.state.d -= body.state.d
+        body.state.D -=  body.state.D
+        body.state.Fext -= body.state.Fext
+        body.state.τext -= body.state.τext
+        body.state.vsol[1] -= body.state.vsol[1] 
+        body.state.vsol[2] -= body.state.vsol[2]
+        body.state.ωsol[1] -= body.state.ωsol[1]
+        body.state.ωsol[2] -= body.state.ωsol[2]
+    end
+end
+steps = size(storage.x[1])[1]
+
+set_maximal_state!(mechanism, storage, ind=1)
+Dojo.reset!.(mechanism.joints, scale=1.0)
+include("/Users/mitchfogelson/.julia/dev/Dojo.jl/ClosedChainEnvironments/src/environments/scissor_mech/controllers.jl")
+new_storage = Storage(275, length(mechanism.bodies))
+include("/Users/mitchfogelson/.julia/dev/Dojo.jl/ClosedChainEnvironments/src/environments/scissor_mech/scissor_mechanism.jl")
+
+mechanism = get_scissor_mechanism(num_sets=23, damper=0.01, initial_angle=-pi*8/10, timestep=0.001, slop=0.001)
+simulate!(mechanism, 1:275, new_storage, spring_controller!, record=true , opts=SolverOptions(rtol=1e-6, btol=1e-4, reg=1e-8,verbose=false, svd_threshold=1e-6), abort_upon_failure=true, solver=Dojo.mehrotra_svd!)
+mechanism.timestep
+mechanism.gravity
+delete!(vis)
+vis = visualize(mechanism, combine_storage; vis=vis, visualize_floor=false, show_frame=true)
+set_maximal_state!(mechanism, combine_storage, ind=steps+31)
+for joint in mechanism.joints
+    println(joint.name)
+    pbody = get_body(mechanism, joint.parent_id)
+    cbody = get_body(mechanism, joint.child_id)
+    println(cbody.name)
+    origin_parent = pbody.state.x2+Dojo.vector_rotate( joint.translational.vertices[1], pbody.state.q2)
+    origin_child = cbody.state.x2+Dojo.vector_rotate(joint.translational.vertices[2], cbody.state.q2)
+    if pbody.name != Symbol("origin")
+        parent_forces = Dojo.impulse_map(mechanism, joint, pbody)*joint.impulses[2]
+        Dojo.set_arrow!(vis, origin_parent, Dojo.vector_rotate(parent_forces[1:3], pbody.state.q2), scaling=0.1, color=RGBA(1, 0, 0, 0.5), name=pbody.name)
+    end
+    child_forces = Dojo.impulse_map(mechanism, joint, cbody)*joint.impulses[2]
+    println(origin_child)
+    Dojo.set_arrow!(vis, origin_child, Dojo.vector_rotate(child_forces[1:3], cbody.state.q2), shaft_radius=0.001, max_head_radius=0.01, scaling=1.0, color=RGBA(0, 1, 0, 0.5), name=joint.name)
+end
+
+delete!(vis)
+
+
+# combine storages 
+combine_storage = Storage(steps+39, length(mechanism.bodies))
+for i in 1:steps
+    for j in 1:length(mechanism.bodies)
+        combine_storage.x[j][i] = storage.x[j][i]
+        combine_storage.q[j][i] = storage.q[j][i]
+        combine_storage.ω[j][i] = storage.ω[j][i]
+        combine_storage.v[j][i] = storage.v[j][i]
+    end
+end
+start = steps+1 
+end_step = steps+39
+for i in start:end_step
+    for j in 1:length(mechanism.bodies)
+        combine_storage.x[j][i] = new_storage.x[j][i-steps]
+        combine_storage.q[j][i] = new_storage.q[j][i-steps]
+        combine_storage.ω[j][i] = new_storage.ω[j][i-steps]
+        combine_storage.v[j][i] = new_storage.v[j][i-steps]
+    end
+end
+vis = visualize(mechanism, combine_storage; vis=vis, visualize_floor=false, show_frame=true)
+
+SVDs = []
+for i in 1:steps
+    set_maximal_state!(mechanism, storage, ind=i)
+    Dojo.set_entries!(mechanism)
+    A = full_matrix(mechanism.system)
+    F = Dojo.svd(A, full=true, alg=Dojo.LinearAlgebra.QRIteration())
+    push!(SVDs, F)
+end
+
+for i in 1:39
+    set_maximal_state!(mechanism, new_storage, ind=i)
+    Dojo.set_entries!(mechanism)
+    A = full_matrix(mechanism.system)
+    F = Dojo.svd(A, full=true, alg=Dojo.LinearAlgebra.QRIteration())
+    push!(SVDs, F)
+end
+
+using Plots
+plot([F.S for F in SVDs], yscale=:log10, legend=false, title="Singular Values of Scissor with 3 cells 0.004 Slop", xlabel="Index", ylabel="Singular Value")
+
+plot([sum(F.S .< 1e-6) for F in SVDs], legend=false, label="Total Singular Values", title="Number of Singular Values less than 1e-6", xlabel="Step", ylabel="Number of Singular Values less than 1e-6", lw=3)
+
 A = full_matrix(mechanism.system)
 F = Dojo.svd(A, full=true, alg=Dojo.LinearAlgebra.QRIteration())
 using Plots
 plot(F.S, yscale=:log10, legend=false, title="Singular Values of Scissor with 3 cells 0.004 Slop", xlabel="Index", ylabel="Singular Value")
+
+for i in [1, 244]
+    set_maximal_state!(mechanism, storage, ind=i)
+    Dojo.set_entries!(mechanism)
+    for joint in mechanism.joints Dojo.input_impulse!(joint, mechanism) end
+    joint = mechanism.joints[1]
+    println(joint.impulses)
+end
+
+
 # vis
 # ### Visualize
 vis = Visualizer()

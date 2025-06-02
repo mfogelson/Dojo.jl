@@ -43,7 +43,7 @@ function get_scissor_mechanism(;
 
         if i == 1
             joint1 = JointConstraint(Revolute(origin, body, rotation_axis), name=Symbol("origin_joint"))
-            joint2 = JointConstraint(Revolute(body, body2, rotation_axis, rot_joint_limits=rot_joint_limits_odd), name=Symbol("joint_pairs$i"))
+            joint2 = JointConstraint(Revolute(body, body2, rotation_axis, rot_joint_limits=rot_joint_limits_odd, damper=damper), name=Symbol("joint_pairs$i"))
             push!(joints, joint1, joint2)
         else
             if iszero(slop)
